@@ -29,9 +29,6 @@ jobs:
         env:
           BUILD_NUMBER: ${{ github.run_number }}
         run: bash scripts/build-ipa.sh
-      - name: Test native UI on iPhone simulator
-        timeout-minutes: 12
-        run: bash scripts/test-native.sh
       - name: Upload native IPA
         uses: actions/upload-artifact@v4
         with:
@@ -41,6 +38,9 @@ jobs:
             build/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
+      - name: Test native UI on iPhone simulator
+        timeout-minutes: 20
+        run: bash scripts/test-native.sh
       - name: Upload native screenshots
         if: always()
         uses: actions/upload-artifact@v4
