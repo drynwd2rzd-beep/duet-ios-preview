@@ -1,6 +1,7 @@
 import XCTest
 
 final class DuetUITests: XCTestCase {
+    override func setUp() { super.setUp(); continueAfterFailure = false }
     func testNativeScreensDoNotUseWebViewsOrPageZoom() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
@@ -9,7 +10,10 @@ final class DuetUITests: XCTestCase {
         XCTAssertTrue(group.waitForExistence(timeout: 15))
         XCTAssertEqual(app.webViews.count, 0, "The main UI must be native")
         let before = group.frame
-        app.windows.firstMatch.pinch(withScale: 1.5, velocity: 1)
+        let header = app.descendants(matching: .any)["home.header"].firstMatch
+        XCTAssertTrue(header.waitForExistence(timeout: 5))
+        header.pinch(withScale: 1.5, velocity: 1)
+        XCTAssertTrue(group.waitForExistence(timeout: 5), "Pinching the header should keep the home screen open")
         let after = group.frame
         XCTAssertEqual(before.width, after.width, accuracy: 1, "Pinching the home page must not scale its UI")
         attach(app, "Native Chats")
