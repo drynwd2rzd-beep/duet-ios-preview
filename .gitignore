@@ -1,0 +1,5 @@
+build/
+Duet.xcodeproj/
+.DS_Store
+*.xcuserstate
+xcuserdata/

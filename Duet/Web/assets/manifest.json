@@ -1,0 +1,44 @@
+[
+  {
+    "file": "lucide.js",
+    "source": "https://unpkg.com/lucide@1.17.0/dist/umd/lucide.min.js",
+    "bytes": 402312,
+    "sha256": "5e943127343691a9b640d959bbfbdeb742f4a99e0ebc17a4fa77e94654e5318b"
+  },
+  {
+    "file": "LUCIDE-LICENSE.txt",
+    "source": "https://unpkg.com/lucide@1.17.0/LICENSE",
+    "bytes": 3208,
+    "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+  },
+  {
+    "file": "openai.svg",
+    "source": "https://unpkg.com/@lobehub/icons-static-svg@1.98.0/icons/openai.svg",
+    "bytes": 1687,
+    "sha256": "a595df6b423920c67a7f8f73c063e4bfb72d415948097b6cac063a2366bb5186"
+  },
+  {
+    "file": "claude.svg",
+    "source": "https://unpkg.com/@lobehub/icons-static-svg@1.98.0/icons/claude.svg",
+    "bytes": 1701,
+    "sha256": "365a70a7eb3956d9b9a96086058ebe04e1dbd8e291a756ad964e8a283fbd6d38"
+  },
+  {
+    "file": "LOBEHUB-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/master/LICENSE",
+    "bytes": 1064,
+    "sha256": "add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a"
+  },
+  {
+    "file": "cormorant.ttf",
+    "source": "https://fonts.gstatic.com/s/cormorantgaramond/v21/co3umX5slCNuHLi8bLeY9MK7whWMhyjypVO7abI26QOD_s06GnM.ttf",
+    "bytes": 290496,
+    "sha256": "1724047c8988ca5155bff667bc48fa52e97d57aabc6b42eebbf986f21a4be20b"
+  },
+  {
+    "file": "CORMORANT-OFL.txt",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantgaramond/OFL.txt",
+    "bytes": 4387,
+    "sha256": "60700d351cac4650c51f3f9db318d2a420f8b45052dba2715eb5fec41f0f6956"
+  }
+]
