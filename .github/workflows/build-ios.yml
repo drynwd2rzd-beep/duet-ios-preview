@@ -1,54 +1,62 @@
-name: Build iPhone IPA
+name: Build Native iPhone IPA
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: iphone-build-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   build:
-    name: Build unsigned IPA on macOS
+    name: Compile and test native iPhone app
     runs-on: macos-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - name: Check Xcode and project assets
+      - name: Validate native sources
         run: |
           set -euo pipefail
           xcodebuild -version
           python3 scripts/validate.py
-          python3 -c 'import subprocess; v=subprocess.check_output(["xcodebuild","-version"],text=True).split()[1]; assert int(v.split(".")[0]) >= 26, "Xcode 26+ is required for Liquid Glass"'
       - name: Generate Xcode project
         run: |
           set -euo pipefail
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
           xcodegen generate --spec project.yml
-      - name: Compile and package
+      - name: Compile native IPA
         env:
           BUILD_NUMBER: ${{ github.run_number }}
         run: bash scripts/build-ipa.sh
-      - name: Upload IPA
+      - name: Test native UI on iPhone simulator
+        run: bash scripts/test-native.sh
+      - name: Upload native IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Duet-unsigned-ipa
+          name: Duet-native-ipa
           path: |
-            build/Duet-Preview-unsigned.ipa
+            build/Duet-Native-unsigned.ipa
             build/SHA256SUMS.txt
           if-no-files-found: error
+          retention-days: 14
+      - name: Upload native screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-ui-screenshots
+          path: build/native-ui-screenshots/
+          if-no-files-found: ignore
           retention-days: 14
       - name: Upload diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-diagnostics
+          name: native-build-diagnostics
           path: |
             build/xcodebuild.log
+            build/native-tests.log
             build/Build.xcresult
+            build/NativeUITests.xcresult
           if-no-files-found: ignore
           retention-days: 7

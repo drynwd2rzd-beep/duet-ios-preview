@@ -1,45 +1,28 @@
-# Duet · iPhone 界面体验版
+# Duet 0.2 · 原生 iPhone 体验版
 
-保留已经确认的聊天界面，使用 SwiftUI + WKWebView 封装成本地 iPhone App。
+本版主界面使用 SwiftUI / UIKit，未使用 WKWebView，不加载 HTML、CSS、JavaScript。聊天、输入框、想法、设置、文件预览和照片浏览均为原生控件。
 
-## 生成 IPA
+## 构建与安装
 
-把本目录的文件放到 GitHub 仓库根目录，推送到 `main` 后自动运行 **Build iPhone IPA**；也可以在 Actions 中手动运行。流程使用 GitHub 的 `macos-latest` 虚拟机和 Xcode 26 或更新版本。
+推送到 `main` 后，GitHub 的 macOS runner 自动运行 **Build Native iPhone IPA**。流程先编译 arm64 iPhone IPA，再在 iPhone 模拟器执行 UI 测试；成功后下载 **Duet-native-ipa** 并解压，取得 `Duet-Native-unsigned.ipa`，自行签名安装。最低 iOS 17，版本号 0.2.0，Bundle ID 为 `app.duet.preview`。
 
-成功后，在该次 Actions 运行页面下载 **Duet-unsigned-ipa**，解压得到 `Duet-Preview-unsigned.ipa`。它是未签名包，需要使用自己的自签方式签名后才能安装，不能直接点文件安装。
+## 原生范围
 
-本流程不需要把 Apple ID、密码、证书或描述文件上传 GitHub。
+- 主界面无网页层；整页不支持网页式缩放。只有照片大图的专用 UIScrollView 支持捏合与双击缩放。
+- iOS 26+ 底部导航和辅助按钮使用苹果 `glassEffect`；旧系统回退到系统 Material。导航、菜单、表单和弹出页采用 SwiftUI 系统组件。
+- 圆形头像、可编辑名字、右滑置顶、聊天搜索、群聊 @、照片叠放与展开、左右浏览和大图缩放。
+- 系统相机、PhotosPicker 多图选择、原生文件导入与 Quick Look 预览。
+- 想法编辑、左右滑动快捷操作、系统本地提醒（保存提醒时申请权限）。
+- 独立角色档案和可编辑记忆，群聊可用范围由用户决定，称呼跟随“我的资料”。
+- 主题色、纯色全局背景、独立聊天背景、全局系统／衬线／用户导入字体。原生字体导入支持 TTF / OTF。
+- 数据与素材保存于设备 Application Support。旧混合版已保存的名字、主题、想法和角色文字会尽量迁移；旧版运行期内的临时照片无法恢复。
 
-## 已包含
+## 当前边界
 
-- 当前聊天／想法／设置界面，单聊和三人聊天、圆形头像、照片叠放与大图手势。
-- 底部导航采用原生 SwiftUI：iOS 26 及以上调用苹果 `glassEffect`，iOS 17–18 使用系统 Material 回退。内容页和聊天菜单依然由本地网页渲染，不宣称全部界面是原生 Liquid Glass。
-- 原生触感反馈、系统相机入口和照片确认；文件和照片选择使用 WebKit 系统选择器。
-- 适配实际屏幕、真实系统状态栏、键盘、安全区；图标与主要英文字体随安装包离线提供。
-- 名字、主题、角色文字、确认的记忆与想法等偏好在设备本地保存。
+真实 ChatGPT / Claude 官网账号连接和消息收发仍未实现。发送后会明确显示账号未连接；回复演示始终标注“交互演示”。不会把演示当作真实 AI。未来官网连接只会作为独立账号模块实现，不用网页承载主界面。
 
-## 体验版边界
+## 验证
 
-- 尚未连接 ChatGPT／Claude，消息不会发给真实 AI。回复演示会明确标注“交互演示”。
-- 提醒目前只保存设置，不会触发系统通知。
-- 聊天历史、照片、头像图片、背景图片、附件和导入字体目前保留在本次运行中，重新启动会重置这些临时内容。请勿把它当作唯一的记录工具。
-- 主界面已在浏览器检查，SwiftUI 编译结果以 GitHub Actions 日志为准，实际相机、键盘和 Liquid Glass 效果需在 iPhone 验证。
+`scripts/validate.py` 检查原生源文件，并在 IPA 内拒绝 HTML / JS / CSS 文件。UI 测试检查主界面没有 WebView、捏合主页不会改变会话卡片宽度，并操作聊天输入、想法、设置和外观页面。模拟器截图作为 **native-ui-screenshots** 上传。触感、相机、通知和自签后的实机行为仍需在 iPhone 验证。
 
-## 本机开发（Mac）
-
-安装 Xcode 26+、XcodeGen 后，在项目目录执行：
-
-```bash
-xcodegen generate --spec project.yml
-bash scripts/build-ipa.sh
-```
-
-Xcode 工程可直接打开。若要从 Xcode 安装实机，请在 Signing & Capabilities 选择自己的 Team。
-
-## 参考
-
-- [Apple：Applying Liquid Glass to custom views](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
-- [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen)
-
-第三方图标和字体许可见 `THIRD_PARTY_NOTICES.md` 与 `Duet/Web/assets/`。
+品牌图标由 LobeHub 开源 SVG 提供，仅用于服务识别，不表示与相关服务有关联。图标许可见 `THIRD_PARTY_NOTICES.md`。字体许可随 `Duet/Resources` 保存。
