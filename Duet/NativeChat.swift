@@ -136,12 +136,12 @@ struct NativeChat: View {
                 HStack(alignment: .bottom, spacing: 8) {
                     TextField("发消息", text: $text, axis: .vertical).font(store.font(16)).lineLimit(1...5).padding(.vertical, 8).focused($inputFocused).accessibilityIdentifier("message.input")
                     if thread == "group" { Button { if !text.isEmpty && !text.hasSuffix(" ") { text += " " }; text += "@"; inputFocused = true } label: { Image(systemName: "at").font(.system(size: 18)).foregroundStyle(p.secondary).frame(width: 26, height: 36) }.accessibilityLabel("提及伙伴") }
-                    Button { if store.replyingThread == thread { store.stopDemo() } else { send() } } label: { Image(systemName: store.replyingThread == thread ? "stop.fill" : "arrow.up").font(.system(size: 18, weight: .medium)).foregroundStyle(p.background).frame(width: 36, height: 36).background(p.accent.opacity(canSend ? 1 : 0.35), in: Circle()) }.disabled(!canSend).accessibilityLabel(store.replyingThread == thread ? "停止回复" : "发送消息").accessibilityIdentifier("message.send")
+                    Button { if store.isReplying(thread) { store.stopReplies(thread) } else { send() } } label: { Image(systemName: store.isReplying(thread) ? "stop.fill" : "arrow.up").font(.system(size: 18, weight: .medium)).foregroundStyle(p.background).frame(width: 36, height: 36).background(p.accent.opacity(canSend ? 1 : 0.35), in: Circle()) }.disabled(!canSend).accessibilityLabel(store.isReplying(thread) ? "停止回复" : "发送消息").accessibilityIdentifier("message.send")
                 }.padding(5).padding(.leading, 10).background(p.surface, in: RoundedRectangle(cornerRadius: 26))
             }.padding(.horizontal, 13)
         }.padding(.top, 10).padding(.bottom, 9).background(p.background.opacity(0.97))
     }
-    private var canSend: Bool { store.replyingThread == thread || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty }
+    private var canSend: Bool { store.isReplying(thread) || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty }
     private func send() { store.send(thread: thread, text: text, attachments: attachments, editing: editing); text = ""; attachments = []; editing = nil }
     private func chooseMention(_ id: String) { if let range = text.range(of: "@", options: .backwards) { text.replaceSubrange(range.lowerBound..., with: "@" + (id == "all" ? "所有人" : store.name(id)) + " ") }; inputFocused = true }
     private func saveMemory(_ message: ChatMessage, provider: String) { memory = MemoryRequest(provider: provider, memory: Memory(text: String(message.text.prefix(160)), thread: thread, message: message.id, date: message.date)) }
@@ -167,7 +167,7 @@ struct MessageCell: View {
             if !message.attachments.filter(\.photo).isEmpty { NativePhotoStack(photos: message.attachments.filter(\.photo), open: onPhoto) }
             ForEach(message.attachments.filter { !$0.photo }) { file in Button { onFile(file) } label: { HStack(spacing: 10) { Image(systemName: "doc").font(.system(size: 23, weight: .light)).foregroundStyle(p.accent); VStack(alignment: .leading, spacing: 4) { Text(file.name).font(store.font(12)).lineLimit(2); Text(ByteCountFormatter.string(fromByteCount: Int64(file.bytes), countStyle: .file)).font(store.font(11)).foregroundStyle(p.secondary) }; Spacer(minLength: 0) }.padding(13).frame(maxWidth: 245).background(p.surface, in: RoundedRectangle(cornerRadius: 16)) }.buttonStyle(.plain) }
             if !message.text.isEmpty || message.status == "replying" {
-                Group { if message.text.isEmpty { HStack(spacing: 5) { ForEach(0..<3) { _ in Circle().fill(p.secondary).frame(width: 5, height: 5) } }.frame(height: 18).accessibilityLabel("演示回复中") } else { Text(message.text).font(store.font(14)).lineSpacing(4).textSelection(.enabled).multilineTextAlignment(.leading) } }
+                Group { if message.text.isEmpty { HStack(spacing: 5) { ForEach(0..<3) { _ in Circle().fill(p.secondary).frame(width: 5, height: 5) } }.frame(height: 18).accessibilityLabel(message.demo ? "演示回复中" : "正在回复") } else { Text(message.text).font(store.font(14)).lineSpacing(4).textSelection(.enabled).multilineTextAlignment(.leading) } }
                     .padding(.horizontal, 15).padding(.vertical, 11)
                     .background(mine ? p.mine : p.surface, in: UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: mine ? 20 : 7, bottomTrailingRadius: mine ? 7 : 20, topTrailingRadius: 20))
                     .contextMenu { Button("复制", systemImage: "doc.on.doc") { UIPasteboard.general.string = message.text; store.notice("已复制") }; if mine { Button("编辑并重发", systemImage: "square.and.pencil", action: onEdit) }; Button("保存为想法", systemImage: "lightbulb", action: onIdea); Button("加入伙伴记忆", systemImage: "note.text", action: onMemory) }
@@ -178,9 +178,9 @@ struct MessageCell: View {
     private var status: some View {
         HStack(spacing: 6) {
             if message.status == "sending" { ProgressView().controlSize(.mini); Text("发送中") }
-            if message.status == "failed" { Image(systemName: "exclamationmark.circle"); Text("未发送 · 账号未连接"); Button("重试") { store.retry(thread, id: message.id) }.foregroundStyle(p.accent) }
-            if message.status == "replying" { Image(systemName: "ellipsis"); Text("演示回复中") }
-            if message.status == "stopped" { Image(systemName: "pause"); Text("已停止演示") }
+            if message.status == "failed" { Image(systemName: "exclamationmark.circle"); Text(message.bridgeError ?? "未发送，请检查电脑连接"); Button("重试") { store.retry(thread, id: message.id) }.foregroundStyle(p.accent) }
+            if message.status == "replying" { Image(systemName: "ellipsis"); Text(message.demo ? "演示回复中" : "正在回复") }
+            if message.status == "stopped" { Image(systemName: "pause"); Text(message.demo ? "已停止演示" : "已停止") }
             if message.status == "demo" { Image(systemName: "checkmark"); Text("演示结束") }
         }.font(store.font(11)).foregroundStyle(p.secondary).padding(.horizontal, 4)
     }

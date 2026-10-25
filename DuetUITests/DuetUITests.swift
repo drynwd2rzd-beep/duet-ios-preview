@@ -53,4 +53,21 @@ final class DuetUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    func testNativeBridgeConfiguration() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        XCTAssertTrue(app.buttons["tab.ideas"].waitForExistence(timeout: 12))
+        app.buttons["tab.ideas"].tap()
+        app.buttons["open.settings"].tap()
+        let accounts = app.buttons["settings.accounts"]
+        XCTAssertTrue(accounts.waitForExistence(timeout: 6))
+        accounts.tap()
+        XCTAssertTrue(app.textFields["bridge.address"].waitForExistence(timeout: 6))
+        XCTAssertTrue(app.secureTextFields["bridge.token"].exists)
+        XCTAssertTrue(app.buttons["bridge.connect"].exists)
+        XCTAssertEqual(app.webViews.count, 0)
+        attach(app, "Native Computer Connection")
+    }
 }

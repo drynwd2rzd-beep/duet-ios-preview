@@ -25,6 +25,8 @@ struct ChatMessage: Codable, Identifiable {
     var recipients: [String] = []
     var demo = false
     var edited = false
+    var bridgeJob: String? = nil
+    var bridgeError: String? = nil
 }
 struct Idea: Codable, Identifiable {
     var id = UUID()
@@ -95,6 +97,7 @@ final class NativeStore: ObservableObject {
     private var toastTask: Task<Void, Never>?
     let directory: URL
     let testMode: Bool
+    lazy var relay = NativeRelay(store: self)
 
     init() {
         testMode = ProcessInfo.processInfo.arguments.contains("--uitesting")
@@ -192,24 +195,16 @@ final class NativeStore: ObservableObject {
     func send(thread: String, text: String, attachments: [ChatAttachment], editing: UUID? = nil) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty else { return }
         let targets = recipients(text, thread: thread)
-        var id = UUID()
-        if let editing, let i = data.messages[thread]?.firstIndex(where: { $0.id == editing }) {
-            data.messages[thread]![i].text = text; data.messages[thread]![i].status = "sending"; data.messages[thread]![i].edited = true; data.messages[thread]![i].recipients = targets; id = editing
-        } else {
-            let message = ChatMessage(author: "me", text: String(text.prefix(10000)), attachments: attachments, status: "sending", recipients: targets); id = message.id; data.messages[thread, default: []].append(message)
-        }
+        let originalFiles = editing.flatMap { id in data.messages[thread]?.first(where: { $0.id == id })?.attachments } ?? []
+        let message = ChatMessage(author: "me", text: String(text.prefix(10000)), attachments: attachments.isEmpty ? originalFiles : attachments, status: "sending", recipients: targets, edited: editing != nil)
+        data.messages[thread, default: []].append(message)
         data.drafts[thread] = ""
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        markFailed(thread, id: id)
+        relay.enqueue(message, thread: thread)
     }
-    private func markFailed(_ thread: String, id: UUID) {
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 550_000_000)
-            guard let self, let i = self.data.messages[thread]?.firstIndex(where: { $0.id == id }), self.data.messages[thread]![i].status == "sending" else { return }
-            self.data.messages[thread]![i].status = "failed"
-        }
-    }
-    func retry(_ thread: String, id: UUID) { guard let i = data.messages[thread]?.firstIndex(where: { $0.id == id }) else { return }; data.messages[thread]![i].status = "sending"; markFailed(thread, id: id); notice("体验版尚未连接 AI 账号") }
+    func retry(_ thread: String, id: UUID) { guard let i = data.messages[thread]?.firstIndex(where: { $0.id == id }) else { return }; if let job = data.messages[thread]![i].bridgeJob { relay.retryJob(job) } else { data.messages[thread]![i].status = "sending"; data.messages[thread]![i].bridgeError = nil; relay.enqueue(data.messages[thread]![i], thread: thread) } }
+    func isReplying(_ thread: String) -> Bool { replyingThread == thread || relay.isReplying(thread) }
+    func stopReplies(_ thread: String) { if replyingThread == thread { stopDemo() }; relay.stop(thread) }
     func stopDemo() {
         replyTask?.cancel()
         if let thread = replyingThread, let i = data.messages[thread]?.lastIndex(where: { $0.status == "replying" }) { data.messages[thread]![i].status = "stopped" }

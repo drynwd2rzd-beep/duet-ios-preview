@@ -1,10 +1,10 @@
-# Duet 0.2 · 原生 iPhone 体验版
+# Duet 0.3 · 原生 iPhone + Windows 消息桥
 
 本版主界面使用 SwiftUI / UIKit，未使用 WKWebView，不加载 HTML、CSS、JavaScript。聊天、输入框、想法、设置、文件预览和照片浏览均为原生控件。
 
 ## 构建与安装
 
-推送到 `main` 后，GitHub 的 macOS runner 自动运行 **Build Native iPhone IPA**。流程先编译 arm64 iPhone IPA，再在 iPhone 模拟器执行 UI 测试；成功后下载 **Duet-native-ipa** 并解压，取得 `Duet-Native-unsigned.ipa`，自行签名安装。最低 iOS 17，版本号 0.2.0，Bundle ID 为 `app.duet.preview`。
+推送到 `main` 后，GitHub 的 macOS runner 自动运行 **Build Native iPhone IPA**。流程先编译 arm64 iPhone IPA，再在 iPhone 模拟器执行 UI 测试；成功后下载 **Duet-native-ipa** 并解压，取得 `Duet-Native-unsigned.ipa`，自行签名安装。最低 iOS 17，版本号 0.3.0，Bundle ID 为 `app.duet.preview`。
 
 ## 原生范围
 
@@ -19,7 +19,13 @@
 
 ## 当前边界
 
-真实 ChatGPT / Claude 官网账号连接和消息收发仍未实现。发送后会明确显示账号未连接；回复演示始终标注“交互演示”。不会把演示当作真实 AI。未来官网连接只会作为独立账号模块实现，不用网页承载主界面。
+GPT 文字聊天通过自己的 Windows 消息桥转交给本地 Codex app-server。用 ChatGPT 账号为 Duet 独立登录 Codex，无需填写 API 密钥；不读取 ChatGPT 官网原聊天记录。消息桥的本机真实连接测试已返回 GPT 回复。
+
+iPhone 在“想法 → 设置 → 电脑连接”中保存 WSS 地址和配对码，也可扫描电脑生成的 Duet 配对二维码，核对地址后点击“保存并连接”。配对码保存在设备钥匙串。App 前台连接消息桥，后台暂停连接，回到前台重连；未确认的文字消息使用相同 UUID 重试。编辑并重发会产生新消息，不改写服务器已有记录。
+
+Claude、照片和文件的真实 AI 收发、手机端模型/强度切换、后台 AI 推送仍未接入。原有相册、相机和文件预览 UI 保留。不会把演示回复或服务器接收确认显示成已获真实 AI 回复。当前使用 Codex 账号默认模型。
+
+Windows 消息桥需要在聊天时保持运行。外网连接使用用户选择的 Cloudflare 临时 HTTPS/WSS 入口；临时地址在隧道重启后会改变，需要重新配对。手机实测、自签后的钥匙串和扫码行为仍需在 iPhone 验证。
 
 ## 验证
 

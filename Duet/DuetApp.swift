@@ -6,12 +6,13 @@ import UserNotifications
 struct DuetApp: App {
     @StateObject private var store = NativeStore()
     var body: some Scene {
-        WindowGroup { NativeRoot().environmentObject(store).preferredColorScheme(store.appearance) }
+        WindowGroup { NativeRoot().environmentObject(store).preferredColorScheme(store.appearance).onOpenURL { store.relay.stagePairing($0) } }
     }
 }
 struct NativeRoot: View {
     @EnvironmentObject private var store: NativeStore
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab = "chats"
     @State private var path: [String] = []
     private var p: Palette { Palette(store.data.preferences, scheme) }
@@ -28,6 +29,8 @@ struct NativeRoot: View {
         .sheet(isPresented: $store.settingsPresented) { NativeSettings().environmentObject(store).preferredColorScheme(store.appearance) }
         .overlay(alignment: .bottom) { if let text = store.toast { Label(text, systemImage: "checkmark").font(store.font(12)).padding(.horizontal, 16).padding(.vertical, 12).foregroundStyle(p.background).background(p.foreground, in: Capsule()).padding(.bottom, path.isEmpty ? 74 : 90).padding(.horizontal, 20).allowsHitTesting(false).accessibilityIdentifier("feedback.toast") } }
         .onChange(of: store.requestedThread) { _, value in if let value { path = [value]; store.requestedThread = nil } }
+        .onAppear { if !store.testMode { store.relay.connect() } }
+        .onChange(of: scenePhase) { _, phase in if !store.testMode { if phase == .active { store.relay.connect() } else if phase == .background { store.relay.disconnect(); store.persist() } } }
     }
     private var dock: some View {
         HStack(spacing: 4) { dockButton("chats", icon: "bubble.left", label: "聊天"); dockButton("ideas", icon: "lightbulb", label: "想法") }.padding(5).glassCapsule()
@@ -60,7 +63,7 @@ struct ChatsHome: View {
             }.frame(maxWidth: .infinity, alignment: .leading)
         }.padding(.horizontal, 14).padding(.vertical, 17).frame(minHeight: 88).background(store.data.pinned.contains(id) ? p.accent.opacity(0.065) : p.surface, in: RoundedRectangle(cornerRadius: 22))
     }
-    private func preview(_ id: String) -> String { guard let last = store.data.messages[id]?.last else { return "" }; if !last.text.isEmpty { return last.text.replacingOccurrences(of: "\n", with: " ") }; return last.attachments.allSatisfy(\.photo) ? "[\(last.attachments.count) 张照片]" : "[文件] " + last.attachments.map(\.name).joined(separator: "、") }
+    private func preview(_ id: String) -> String { guard let last = store.data.messages[id]?.last else { return "" }; if !last.text.isEmpty { return last.text.replacingOccurrences(of: "\n", with: " ") }; if last.bridgeJob != nil { return last.status == "replying" ? "正在回复…" : last.status == "failed" ? "回复未完成" : "已停止" }; if last.attachments.isEmpty { return "" }; return last.attachments.allSatisfy(\.photo) ? "[\(last.attachments.count) 张照片]" : "[文件] " + last.attachments.map(\.name).joined(separator: "、") }
 }
 
 struct IdeasHome: View {

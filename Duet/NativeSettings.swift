@@ -24,9 +24,10 @@ struct NativeSettings: View {
     @EnvironmentObject private var store: NativeStore
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dismiss) private var dismiss
+    @State private var settingsPath: [SettingsRoute] = []
     private var p: Palette { Palette(store.data.preferences, scheme) }
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $settingsPath) {
             ScrollView {
                 VStack(spacing: 12) {
                     NavigationLink(value: SettingsRoute.profile("self")) { HStack(spacing: 14) { Avatar(id: "self", size: 54); VStack(alignment: .leading, spacing: 5) { Text(store.name("self")).font(store.font(17, weight: .medium)); Text("我的头像与名字").font(store.font(11)).foregroundStyle(p.secondary) }; Spacer(); Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(p.secondary) }.padding(14).background(p.accent.opacity(0.065), in: RoundedRectangle(cornerRadius: 22)) }.buttonStyle(.plain).accessibilityIdentifier("settings.profile")
@@ -34,15 +35,15 @@ struct NativeSettings: View {
                         tile(.appearance, icon: "paintpalette", title: "外观与字体", detail: "主题 · 字体 · 背景", id: "settings.appearance")
                         tile(.people, icon: "person.2", title: "管理伙伴", detail: "名字与头像", id: "settings.people")
                         tile(.personas, icon: "note.text", title: "个性化与记忆", detail: "角色与共同经历", id: "settings.personas")
-                        tile(.accounts, icon: "link", title: "账号连接", detail: "ChatGPT · Claude", id: "settings.accounts")
+                        tile(.accounts, icon: "link", title: "电脑连接", detail: "GPT · Windows 消息桥", id: "settings.accounts")
                     }
                     VStack(spacing: 0) { row(.notifications, icon: "bell", title: "提醒通知", detail: "本地通知"); Divider().opacity(0.4); row(.automation, icon: "arrow.2.squarepath", title: "自动讨论", detail: store.data.preferences.autoDiscuss ? "\(store.data.preferences.rounds) 轮" : "关闭") }.padding(.horizontal, 14).background(p.surface, in: RoundedRectangle(cornerRadius: 22))
-                    Text("原生体验版 · 真实 AI 尚未连接").font(store.font(11)).foregroundStyle(p.secondary).padding(.top, 5)
+                    Text("原生版 · GPT 通过电脑上的 Codex 连接").font(store.font(11)).foregroundStyle(p.secondary).padding(.top, 5)
                 }.padding(20)
             }.background(p.background).foregroundStyle(p.foreground).sheetTitle("设置")
             .navigationDestination(for: SettingsRoute.self) { settingsDestination($0) }
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("关闭设置").accessibilityIdentifier("settings.close") } }
-        }.tint(p.accent).presentationDetents([.large]).presentationDragIndicator(.visible).presentationCornerRadius(32)
+        }.tint(p.accent).presentationDetents([.large]).presentationDragIndicator(.visible).presentationCornerRadius(32).onAppear { if store.relay.pendingPairing != nil { settingsPath = [.accounts] } }
     }
     private func tile(_ route: SettingsRoute, icon: String, title: String, detail: String, id: String) -> some View {
         NavigationLink(value: route) { VStack(alignment: .leading, spacing: 7) { Image(systemName: icon).font(.system(size: 21, weight: .light)).foregroundStyle(p.accent).padding(.bottom, 3); Text(title).font(store.font(13, weight: .medium)); Text(detail).font(store.font(11)).foregroundStyle(p.secondary) }.frame(maxWidth: .infinity, minHeight: 81, alignment: .leading).padding(16).background(p.surface, in: RoundedRectangle(cornerRadius: 22)) }.buttonStyle(.plain).accessibilityIdentifier(id)
@@ -133,7 +134,7 @@ struct PersonaSettings: View {
         VStack(spacing: 12) {
             HStack(spacing: 13) { Avatar(id: provider, size: 50); VStack(alignment: .leading, spacing: 5) { Text(store.name(provider)).font(store.font(18, weight: .medium)); Text(provider == "gpt" ? "ChatGPT" : "Claude").font(store.font(11)).foregroundStyle(p.secondary) }; Spacer() }.padding(.horizontal, 20).padding(.top, 16)
             Picker("内容", selection: $tab) { Text("角色档案").tag(0); Text("记忆").tag(1) }.pickerStyle(.segmented).padding(.horizontal, 20)
-            if tab == 0 { ScrollView { VStack(spacing: 9) { ForEach(["identity", "values", "relationship", "voice"], id: \.self) { key in NavigationLink(value: SettingsRoute.role(provider, key)) { HStack { VStack(alignment: .leading, spacing: 7) { Text(roleNames[key]!).font(store.font(13, weight: .medium)); Text(roleText(persona, key).isEmpty ? "点此自由设定" : roleText(persona, key)).font(store.font(11)).foregroundStyle(p.secondary).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(p.secondary) }.padding(15).background(p.surface, in: RoundedRectangle(cornerRadius: 16)) }.buttonStyle(.plain) }; Text("角色设定和记忆会保存在这个伙伴的独立档案中。真实 AI 尚未接入。").font(store.font(11)).foregroundStyle(p.secondary).lineSpacing(4).padding(.vertical, 12) }.padding(20) } }
+            if tab == 0 { ScrollView { VStack(spacing: 9) { ForEach(["identity", "values", "relationship", "voice"], id: \.self) { key in NavigationLink(value: SettingsRoute.role(provider, key)) { HStack { VStack(alignment: .leading, spacing: 7) { Text(roleNames[key]!).font(store.font(13, weight: .medium)); Text(roleText(persona, key).isEmpty ? "点此自由设定" : roleText(persona, key)).font(store.font(11)).foregroundStyle(p.secondary).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(p.secondary) }.padding(15).background(p.surface, in: RoundedRectangle(cornerRadius: 16)) }.buttonStyle(.plain) }; Text("角色与记忆分别保存。连接成功后，会随你发出的消息交给对应伙伴。").font(store.font(11)).foregroundStyle(p.secondary).lineSpacing(4).padding(.vertical, 12) }.padding(20) } }
             else { List { Section { VStack(alignment: .leading, spacing: 6) { Text("对你的称呼 · 随我的资料同步").font(store.font(11)).foregroundStyle(p.secondary); Text(store.name("self")).font(store.font(17, weight: .medium)) }.padding(.vertical, 4) }; Section("确认保存的记忆") { if persona.memories.isEmpty { Text("记下你希望它记住的事。").font(store.font(12)).foregroundStyle(p.secondary) }; ForEach(persona.memories) { item in Button { editing = item } label: { VStack(alignment: .leading, spacing: 6) { Text(item.text).font(store.font(13)).foregroundStyle(p.foreground); Text(item.kind + " · " + (item.group ? "群聊也可用" : "仅这个伙伴")).font(store.font(11)).foregroundStyle(p.secondary) }.padding(.vertical, 5) }.buttonStyle(.plain).swipeActions { Button(role: .destructive) { store.data.personas[provider]?.memories.removeAll { $0.id == item.id } } label: { Label("删除", systemImage: "trash") } } } } }.scrollContentBackground(.hidden) }
         }.background(p.background).foregroundStyle(p.foreground).sheetTitle("个性化").toolbar { if tab == 1 { ToolbarItem(placement: .topBarTrailing) { Button { editing = Memory() } label: { Image(systemName: "plus") }.accessibilityLabel("添加记忆") } } }.sheet(item: $editing) { MemoryEditor(provider: provider, memory: $0).environmentObject(store) }
     }
@@ -164,19 +165,11 @@ struct MemoryEditor: View {
 
 struct AccountSettings: View {
     @EnvironmentObject private var store: NativeStore
-    @Environment(\.colorScheme) private var scheme
-    var body: some View {
-        let p = Palette(store.data.preferences, scheme)
-        ScrollView { VStack(spacing: 16) {
-            HStack(spacing: 12) { ForEach(["gpt", "claude"], id: \.self) { id in VStack(spacing: 10) { Avatar(id: id, size: 48); Text(id == "gpt" ? "ChatGPT" : "Claude").font(store.font(14, weight: .medium)); Text("尚未连接").font(store.font(11)).foregroundStyle(p.secondary) }.frame(maxWidth: .infinity).padding(.vertical, 22).background(p.surface, in: RoundedRectangle(cornerRadius: 22)) } }
-            Text("当前版本用于体验原生界面，尚未实现官网账号登录和真实 AI 消息收发。").font(store.font(12)).foregroundStyle(p.secondary).lineSpacing(5)
-            PrimaryAction(title: "体验群聊回复与停止") { store.demo("group") }
-        }.padding(20) }.background(p.background).sheetTitle("账号连接")
-    }
+    var body: some View { NativeBridgeSettings(relay: store.relay) }
 }
 struct AutomationSettings: View {
     @EnvironmentObject private var store: NativeStore
-    var body: some View { Form { Toggle("允许伙伴轮流补充", isOn: $store.data.preferences.autoDiscuss); Picker("每次讨论", selection: $store.data.preferences.rounds) { ForEach(1...3, id: \.self) { Text("\($0) 轮").tag($0) } }; Text("只让被 @ 的伙伴回应。当前用于交互演示，真实自动讨论尚未接入。").font(store.font(11)).foregroundStyle(.secondary) }.sheetTitle("自动讨论") }
+    var body: some View { Form { Toggle("允许伙伴轮流补充", isOn: $store.data.preferences.autoDiscuss); Picker("每次讨论", selection: $store.data.preferences.rounds) { ForEach(1...3, id: \.self) { Text("\($0) 轮").tag($0) } }; Text("群聊里可以 @ 指定伙伴。当前消息桥最多允许伙伴接续一次，Claude 尚未连接。").font(store.font(11)).foregroundStyle(.secondary) }.sheetTitle("自动讨论") }
 }
 struct NotificationSettings: View {
     @EnvironmentObject private var store: NativeStore
@@ -186,9 +179,9 @@ struct NotificationSettings: View {
 struct ModelSettings: View {
     @EnvironmentObject private var store: NativeStore
     let provider: String
-    private var options: [String] { provider == "gpt" ? ["跟随官网", "GPT-6.1 Sol", "GPT-6 Luna"] : ["跟随官网", "Sonnet", "Opus", "Haiku"] }
+    private var options: [String] { ["跟随官网"] }
     var body: some View {
-        Form { Section(store.name(provider)) { ForEach(options, id: \.self) { option in Button { store.data.models[provider] = option } label: { HStack { Text(option).font(store.font(14)); Spacer(); if store.data.models[provider] == option { Image(systemName: "checkmark") } } } } }; Section("思考强度") { Picker("强度", selection: Binding(get: { store.data.strengths[provider] ?? "自动" }, set: { store.data.strengths[provider] = $0 })) { ForEach(["自动", "轻量", "标准", "深入"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented) }; Text("选择效果演示。真实模型和强度选项需在官网账号接入后确认。").font(store.font(11)).foregroundStyle(.secondary) }.sheetTitle("模型与思考强度")
+        Form { Section(store.name(provider)) { ForEach(options, id: \.self) { option in Button { store.data.models[provider] = option } label: { HStack { Text(option).font(store.font(14)); Spacer(); if store.data.models[provider] == option { Image(systemName: "checkmark") } } } } }; Section("思考强度") { Picker("强度", selection: Binding(get: { store.data.strengths[provider] ?? "自动" }, set: { store.data.strengths[provider] = $0 })) { ForEach(["自动", "轻量", "标准", "深入"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented).disabled(true) }; Text("当前使用电脑上 Codex 账号的默认模型。手机端模型与强度切换尚未接入。").font(store.font(11)).foregroundStyle(.secondary) }.sheetTitle("模型与思考强度")
     }
 }
 struct ChatBackgroundSettings: View {
