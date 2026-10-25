@@ -4,7 +4,7 @@
 
 ## 生成 IPA
 
-把本目录的文件放到 GitHub 仓库根目录，推送到 `main` 后自动运行 **Build iPhone IPA**；也可以在 Actions 中手动运行。流程使用 GitHub 的 `macos-26` 虚拟机和 Xcode 26 或更新版本。
+把本目录的文件放到 GitHub 仓库根目录，推送到 `main` 后自动运行 **Build iPhone IPA**；也可以在 Actions 中手动运行。流程使用 GitHub 的 `macos-latest` 虚拟机和 Xcode 26 或更新版本。
 
 成功后，在该次 Actions 运行页面下载 **Duet-unsigned-ipa**，解压得到 `Duet-Preview-unsigned.ipa`。它是未签名包，需要使用自己的自签方式签名后才能安装，不能直接点文件安装。
 
