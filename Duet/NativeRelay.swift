@@ -124,6 +124,8 @@ final class NativeRelay: ObservableObject {
             agents = values.mapValues { ($0["connected"] as? Bool) == true }; state = agents["gpt"] == true ? "GPT 已连接" : "电脑已连接，GPT 待登录"
         case "history":
             guard let channel = event["channel"] as? String else { return }
+            // Preview examples are not real conversation history. Keep actual sends and replies.
+            store?.data.messages[channel]?.removeAll { $0.status == "sample" }
             for message in event["messages"] as? [[String: Any]] ?? [] { upsert(message, thread: channel) }
             for job in event["jobs"] as? [[String: Any]] ?? [] { updateJob(job) }
         case "ack":
