@@ -19,7 +19,6 @@ targets:
       - path: Duet
         excludes: [Resources, Info.plist]
       - path: Duet/Resources
-        type: folder
         buildPhase: resources
     settings:
       base:

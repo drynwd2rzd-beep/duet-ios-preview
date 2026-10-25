@@ -19,5 +19,7 @@ if args.ipa:
         assert 'Payload/Duet.app/Duet' in names
         assert z.read('Payload/Duet.app/Duet')[:4]==b'\xcf\xfa\xed\xfe'
         info=plistlib.loads(z.read('Payload/Duet.app/Info.plist'))
+        assert info['CFBundleIdentifier']=='app.duet.preview'
+        assert not any(n.startswith('Payload/Duet.app/Resources/') for n in names),'Do not use a reserved Resources bundle directory on iOS'
         assert info['CFBundleShortVersionString']=='0.2.0'
 print('Native-only source validation passed'+(' and IPA verified without HTML/JS/CSS' if args.ipa else ''))
