@@ -16,6 +16,8 @@
   <key>UILaunchScreen</key><dict/>
   <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
   <key>UIRequiresFullScreen</key><true/>
+  <key>UIBackgroundModes</key><array><string>processing</string></array>
+  <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>$(PRODUCT_BUNDLE_IDENTIFIER).reply</string></array>
   <key>NSCameraUsageDescription</key><string>用于在聊天中实时拍照，照片仅由你确认后加入当前会话。</string>
   <key>NSPhotoLibraryUsageDescription</key><string>用于选择聊天照片、头像和背景图片。</string>
 </dict></plist>

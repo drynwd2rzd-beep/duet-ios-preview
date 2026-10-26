@@ -33,7 +33,7 @@ final class DuetUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         app.launch()
-        let ideas = app.buttons["tab.ideas"]
+        let ideas = app.tabBars.buttons["想法"]
         XCTAssertTrue(ideas.waitForExistence(timeout: 12))
         ideas.tap()
         attach(app, "Native Ideas")
@@ -58,8 +58,8 @@ final class DuetUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         app.launch()
-        XCTAssertTrue(app.buttons["tab.ideas"].waitForExistence(timeout: 12))
-        app.buttons["tab.ideas"].tap()
+        XCTAssertTrue(app.tabBars.buttons["想法"].waitForExistence(timeout: 12))
+        app.tabBars.buttons["想法"].tap()
         app.buttons["open.settings"].tap()
         let accounts = app.buttons["settings.accounts"]
         XCTAssertTrue(accounts.waitForExistence(timeout: 6))
@@ -69,5 +69,45 @@ final class DuetUITests: XCTestCase {
         XCTAssertTrue(app.buttons["bridge.connect"].exists)
         XCTAssertEqual(app.webViews.count, 0)
         attach(app, "Native Computer Connection")
+    }
+
+    func testSystemTabsRemainTappableAfterNavigatingAndPinning() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12))
+        app.buttons["thread.gpt"].swipeRight()
+        let pin = app.buttons["置顶"].firstMatch
+        XCTAssertTrue(pin.waitForExistence(timeout: 4))
+        pin.tap()
+        for _ in 0..<3 {
+            app.tabBars.buttons["想法"].tap()
+            XCTAssertTrue(app.buttons["open.settings"].waitForExistence(timeout: 4))
+            app.tabBars.buttons["聊天"].tap()
+            app.buttons["thread.gpt"].tap()
+            XCTAssertTrue(app.buttons["chat.options"].waitForExistence(timeout: 4))
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        attach(app, "System Tabs After Pinning")
+    }
+
+    func testLatestMessageAndAvatarOptions() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--uitest-history"]
+        app.launch()
+        XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12))
+        app.buttons["thread.gpt"].tap()
+        let latest = app.staticTexts["Latest test reply"]
+        XCTAssertTrue(latest.waitForExistence(timeout: 6))
+        XCTAssertTrue(latest.isHittable, "Opening a long conversation must start at the newest message")
+        attach(app, "Latest Native Conversation")
+        app.buttons["chat.options"].tap()
+        XCTAssertTrue(app.buttons["chat.model.gpt"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["chat.background"].exists)
+        attach(app, "Native Avatar Options")
+        app.buttons["chat.clear-history"].tap()
+        app.buttons["清空记录"].tap()
+        XCTAssertTrue(app.staticTexts["从一句话开始"].waitForExistence(timeout: 6))
+        XCTAssertFalse(app.staticTexts["Latest test reply"].exists)
     }
 }

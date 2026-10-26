@@ -1,6 +1,15 @@
 import SwiftUI
 import UIKit
 
+enum LayoutMetrics {
+    static let page: CGFloat = 20
+    static let section: CGFloat = 16
+    static let rowGap: CGFloat = 12
+    static let card: CGFloat = 22
+    static let field: CGFloat = 16
+    static let sheet: CGFloat = 28
+}
+
 struct Palette {
     let background: Color
     let foreground: Color
@@ -13,15 +22,19 @@ struct Palette {
         dark = scheme == .dark
         let backgrounds = ["porcelain": ["FCFAFB", "1D181E"], "blush": ["FAF1F5", "261B23"], "cream": ["FAF5EE", "252019"], "mist": ["F1F5FA", "19212A"]]
         background = Color(uiColor: UIColor(hex: (backgrounds[settings.background] ?? backgrounds["porcelain"]!)[dark ? 1 : 0]))
-        foreground = Color(uiColor: UIColor(hex: dark ? "EEE7ED" : "51484F"))
-        secondary = Color(uiColor: UIColor(hex: dark ? "B5A7B2" : "8D7F89"))
+        foreground = Color(uiColor: UIColor(hex: dark ? "ECECEF" : "29272C"))
+        secondary = Color(uiColor: UIColor(hex: dark ? "ADADB7" : "85838D"))
         surface = foreground.opacity(dark ? 0.075 : 0.035)
         let themes = ["rose": ["9A647C", "C8A3B3"], "blue": ["5B708D", "A4BCD6"], "sage": ["5D7A6E", "A7C9B6"], "apricot": ["8E6D4B", "D6BB95"]]
         accent = Color(uiColor: UIColor(hex: settings.theme == "custom" ? settings.customHex : (themes[settings.theme] ?? themes["rose"]!)[dark ? 1 : 0]))
-        mine = accent.opacity(dark ? 0.22 : 0.14)
+        mine = accent.opacity(dark ? 0.2 : 0.1)
     }
 }
 extension View {
+    @ViewBuilder func nativePanel(radius: CGFloat = LayoutMetrics.card) -> some View {
+        if #available(iOS 26.0, *) { self.glassEffect(.regular, in: .rect(cornerRadius: radius)) }
+        else { self.background(.regularMaterial, in: RoundedRectangle(cornerRadius: radius)) }
+    }
     @ViewBuilder func glassCapsule() -> some View {
         if #available(iOS 26.0, *) { self.glassEffect(.regular, in: .capsule) }
         else { self.background(.ultraThinMaterial, in: Capsule()) }
@@ -29,6 +42,10 @@ extension View {
     @ViewBuilder func glassCircle() -> some View {
         if #available(iOS 26.0, *) { self.glassEffect(.regular.interactive(), in: .circle) }
         else { self.background(.ultraThinMaterial, in: Circle()) }
+    }
+    @ViewBuilder func trackChatBottom(_ binding: Binding<Bool>) -> some View {
+        if #available(iOS 18.0, *) { self.onScrollGeometryChange(for: Bool.self) { geometry in geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 100 } action: { _, value in binding.wrappedValue = value } }
+        else { self }
     }
 }
 struct BrandMark: View {
@@ -74,7 +91,7 @@ struct QuietEmpty: View {
     var body: some View {
         let p = Palette(store.data.preferences, scheme)
         VStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 23, weight: .light)).foregroundStyle(p.accent).frame(width: 48, height: 48).background(p.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+            Image(systemName: icon).font(.system(size: 23, weight: .light)).foregroundStyle(p.accent).frame(width: 48, height: 48).background(p.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: LayoutMetrics.field))
             Text(title).font(store.font(14, weight: .medium)).foregroundStyle(p.foreground)
             Text(detail).font(store.font(12)).foregroundStyle(p.secondary).multilineTextAlignment(.center).lineSpacing(4)
         }.frame(maxWidth: .infinity).padding(.vertical, 44).padding(.horizontal, 24)
@@ -86,7 +103,8 @@ struct PrimaryAction: View {
     var title: String
     var action: () -> Void
     var body: some View {
-        Button(action: action) { Text(title).font(store.font(14, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 13) }.buttonStyle(.plain).foregroundStyle(Palette(store.data.preferences, scheme).background).background(Palette(store.data.preferences, scheme).accent, in: Capsule())
+        Group { if #available(iOS 26.0, *) { Button(action: action) { Text(title).font(store.font(14, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 8) }.buttonStyle(.glassProminent) }
+        else { Button(action: action) { Text(title).font(store.font(14, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 8) }.buttonStyle(.borderedProminent).buttonBorderShape(.capsule) } }.tint(Palette(store.data.preferences, scheme).accent)
     }
 }
 struct SheetTitle: ViewModifier {
@@ -96,6 +114,6 @@ struct SheetTitle: ViewModifier {
 }
 extension View { func sheetTitle(_ title: String) -> some View { modifier(SheetTitle(title: title)) } }
 enum SettingsRoute: Hashable {
-    case appearance, people, profile(String), personas, persona(String), accounts, automation, notifications, model(String), background(String), role(String, String)
+    case appearance, people, profile(String), personas, persona(String), accounts, automation, notifications, model(String), background(String), role(String, String), history
 }
 
