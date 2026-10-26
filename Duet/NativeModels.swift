@@ -244,6 +244,22 @@ final class NativeStore: ObservableObject {
         data.messages[thread, default: []].append(message)
         data.drafts[thread] = ""
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #if DEBUG
+        if testMode && ProcessInfo.processInfo.arguments.contains("--uitest-replies") {
+            if let index = data.messages[thread]?.indices.last { data.messages[thread]![index].status = "delivered" }
+            let reply = ChatMessage(author: "gpt", text: "", status: "replying")
+            data.messages[thread, default: []].append(reply)
+            Task { @MainActor in
+                for line in 0..<18 {
+                    try? await Task.sleep(nanoseconds: 120_000_000)
+                    guard let index = data.messages[thread]?.firstIndex(where: { $0.id == reply.id }) else { return }
+                    data.messages[thread]![index].text += "Streaming line \(line)\n"
+                }
+                if let index = data.messages[thread]?.firstIndex(where: { $0.id == reply.id }) { data.messages[thread]![index].text += "Stream reply complete"; data.messages[thread]![index].status = "received" }
+            }
+            return
+        }
+        #endif
         relay.enqueue(message, thread: thread)
     }
     func selection(thread: String, provider: String = "gpt") -> ModelSelection { data.routes?[thread + ":" + provider] ?? ModelSelection() }

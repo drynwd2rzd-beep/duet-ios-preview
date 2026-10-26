@@ -9,15 +9,17 @@ final class DuetAppDelegate: NSObject, UIApplicationDelegate {
         NativeBackground.shared.register()
         return true
     }
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) { NativePush.shared.registered(deviceToken) }
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) { NativePush.shared.failed(error) }
 }
 
 @MainActor
 final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
     private weak var store: NativeStore?
     private let center = UNUserNotificationCenter.current()
-    func install(store: NativeStore) { self.store = store; center.delegate = self }
+    func install(store: NativeStore) { self.store = store; center.delegate = self; NativePush.shared.install(store); if !store.testMode { Task { let settings = await center.notificationSettings(); if [.authorized, .provisional].contains(settings.authorizationStatus) { NativePush.shared.register() } } } }
     func authorize() async -> Bool {
-        do { return try await center.requestAuthorization(options: [.alert, .sound, .badge]) }
+        do { let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge]); if granted { NativePush.shared.register() }; return granted }
         catch { return false }
     }
     func syncReminders(_ ideas: [Idea]) async {
@@ -47,6 +49,7 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
     }
     func reply(id: String, thread: String, name: String, text: String) {
         guard let store, !store.testMode, store.data.preferences.replyNotifications != false else { return }
+        guard !NativePush.shared.serverReady else { return }
         guard UIApplication.shared.applicationState != .active || store.activeThread != thread else { return }
         var seen = UserDefaults.standard.stringArray(forKey: "duet.notifiedReplies.v1") ?? []
         guard !seen.contains(id) else { return }
@@ -63,7 +66,10 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
         do { try await center.add(UNNotificationRequest(identifier: "duet.notification-test", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false))); return true }
         catch { return false }
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions { [.banner, .sound, .list] }
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        let thread = notification.request.content.userInfo["thread"] as? String
+        return await MainActor.run { if let thread, self.store?.activeThread == thread, UIApplication.shared.applicationState == .active { return [] }; return [.banner, .sound, .list] }
+    }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let thread = response.notification.request.content.userInfo["thread"] as? String
         let ideaID = response.notification.request.content.userInfo["ideaID"] as? String
@@ -81,49 +87,19 @@ final class NativeBackground {
     static let shared = NativeBackground()
     var onExpiration: (() -> Void)?
     private var finiteTask: UIBackgroundTaskIdentifier = .invalid
-    private var continuedTask: BGTask?
     private var pending = false
-    private var registered = false
-    private var phase = 0
-    private var identifier: String { (Bundle.main.bundleIdentifier ?? "app.duet.preview") + ".reply" }
-    var continuing: Bool { pending || continuedTask != nil }
+    var continuing: Bool { pending }
     func register() {
-        guard !registered else { return }
-        if #available(iOS 26.0, *) {
-            let permitted = Bundle.main.object(forInfoDictionaryKey: "BGTaskSchedulerPermittedIdentifiers") as? [String] ?? []
-            guard permitted.contains(identifier) else { return }
-            registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: .main) { task in
-                Task { @MainActor in
-                    guard let task = task as? BGContinuedProcessingTask else { task.setTaskCompleted(success: false); return }
-                    guard self.pending else { task.setTaskCompleted(success: true); return }
-                    self.continuedTask = task; task.progress.totalUnitCount = 4; task.progress.completedUnitCount = Int64(self.phase)
-                    task.expirationHandler = { Task { @MainActor in self.pending = false; self.continuedTask = nil; self.onExpiration?(); task.setTaskCompleted(success: false) } }
-                }
-            }
-        }
+        // Cancel any legacy progress task. Waiting for a network reply no longer
+        // schedules a system-visible continued-processing activity.
+        let identifier = (Bundle.main.bundleIdentifier ?? "app.duet.preview") + ".reply"
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier)
     }
     func begin() {
-        guard !pending else { return }; pending = true; phase = 1
-        finiteTask = UIApplication.shared.beginBackgroundTask(withName: "Duet reply") { Task { @MainActor in
-            self.endFinite()
-            if self.continuedTask == nil { self.pending = false; self.onExpiration?() }
-        } }
-        if #available(iOS 26.0, *), registered {
-            let request = BGContinuedProcessingTaskRequest(identifier: identifier, title: "Duet", subtitle: "正在等待伙伴回复")
-            request.strategy = .fail
-            try? BGTaskScheduler.shared.submit(request)
-        }
+        guard !pending else { return }; pending = true
+        finiteTask = UIApplication.shared.beginBackgroundTask(withName: "Duet reply") { Task { @MainActor in self.pending = false; self.endFinite(); self.onExpiration?() } }
     }
-    func progress(_ completed: Int) {
-        phase = max(phase, min(4, completed))
-        if #available(iOS 26.0, *), let task = continuedTask as? BGContinuedProcessingTask { task.progress.completedUnitCount = Int64(phase) }
-    }
-    func finish(success: Bool) {
-        guard pending || continuedTask != nil else { return }
-        pending = false
-        if let task = continuedTask { if success { progress(4) }; task.setTaskCompleted(success: success); continuedTask = nil }
-        if #available(iOS 26.0, *), registered { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier) }
-        endFinite()
-    }
+    func progress(_ completed: Int) { }
+    func finish(success: Bool) { pending = false; endFinite() }
     private func endFinite() { if finiteTask != .invalid { UIApplication.shared.endBackgroundTask(finiteTask); finiteTask = .invalid } }
 }

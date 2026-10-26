@@ -1,6 +1,12 @@
 import SwiftUI
 import UIKit
 
+private struct ChatViewport: Equatable {
+    var bottom: Bool
+    var height: CGFloat
+    var viewportHeight: CGFloat
+}
+
 enum LayoutMetrics {
     static let page: CGFloat = 20
     static let section: CGFloat = 16
@@ -57,9 +63,20 @@ extension View {
         if #available(iOS 26.0, *) { self.glassEffect(.regular.interactive(), in: .circle) }
         else { self.background(.ultraThinMaterial, in: Circle()) }
     }
-    @ViewBuilder func trackChatBottom(_ binding: Binding<Bool>) -> some View {
-        if #available(iOS 18.0, *) { self.onScrollGeometryChange(for: Bool.self) { geometry in geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 100 } action: { _, value in binding.wrappedValue = value } }
-        else { self }
+    @ViewBuilder func trackChatBottom(_ binding: Binding<Bool>, following: Binding<Bool>, interacting: Binding<Bool>, contentChanged: @escaping () -> Void) -> some View {
+        if #available(iOS 18.0, *) {
+            self.onScrollGeometryChange(for: ChatViewport.self) { geometry in
+                ChatViewport(bottom: geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height + geometry.contentInsets.bottom - 72, height: geometry.contentSize.height, viewportHeight: geometry.containerSize.height)
+            } action: { old, value in
+                binding.wrappedValue = value.bottom
+                if interacting.wrappedValue { following.wrappedValue = value.bottom }
+                if old.height != value.height || old.viewportHeight != value.viewportHeight { contentChanged() }
+            }.onScrollPhaseChange { old, phase in
+                if phase == .interacting || phase == .decelerating { interacting.wrappedValue = true }
+                else if phase == .idle { if old == .interacting || old == .decelerating { following.wrappedValue = binding.wrappedValue }; interacting.wrappedValue = false }
+            }
+        }
+        else { self.simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { value in interacting.wrappedValue = true; if value.translation.height > 8 { following.wrappedValue = false } }.onEnded { _ in interacting.wrappedValue = false }) }
     }
 }
 struct BrandMark: View {

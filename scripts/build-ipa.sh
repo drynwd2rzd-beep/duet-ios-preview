@@ -5,6 +5,9 @@ mkdir -p build
 xcodebuild -project Duet.xcodeproj -scheme Duet -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$PWD/build/DerivedData" -resultBundlePath "$PWD/build/Build.xcresult" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= CURRENT_PROJECT_VERSION="${BUILD_NUMBER:-1}" build 2>&1 | tee build/xcodebuild.log
 APP="$PWD/build/DerivedData/Build/Products/Release-iphoneos/Duet.app"
 test -f "$APP/Duet"
+# Preserve the requested APNs entitlement for the user's re-signing tool.
+# This ad-hoc signature is not an installation provisioning signature.
+codesign --force --sign - --entitlements Duet/Duet.entitlements --generate-entitlement-der "$APP"
 mkdir -p build/package/Payload
 ditto "$APP" build/package/Payload/Duet.app
 ditto -c -k --keepParent build/package/Payload build/Duet-Native-unsigned.ipa

@@ -59,6 +59,7 @@ final class NativeRelay: ObservableObject {
         return "跟随电脑"
     }
     func refreshStatus() { send(["type": "status"]) }
+    func registerPush() { if capabilities["pushRegistration"] as? Bool == true, let payload = NativePush.shared.payload() { send(payload) } }
     func refreshModels() { if capabilities["models"] as? Bool == true { send(["type": "models"]) } }
     init(store: NativeStore) {
         self.store = store
@@ -200,6 +201,7 @@ final class NativeRelay: ObservableObject {
             let values = event["agents"] as? [String: [String: Any]] ?? [:]
             agentKinds = values.compactMapValues { $0["kind"] as? String }
             connected = true; state = "已连接电脑"; lastFailure = nil; retryDelay = 1
+            registerPush()
             send(["type": "status"])
             if capabilities["historyClear"] as? Bool == true { for (id, channels) in clearIntents { send(["type": "history.clear", "id": id, "channels": channels]) } }
             for raw in outbox.values { send(raw) }
@@ -221,6 +223,7 @@ final class NativeRelay: ObservableObject {
         case "models":
             modelChoices = (event["models"] as? [[String: Any]] ?? []).compactMap { item in guard let source = item["source"] as? String, ["chatgpt-web", "codex-chatgpt"].contains(source), let model = item["model"] as? String, let name = item["name"] as? String else { return nil }; return ModelChoice(source: source, model: model, name: name, effort: item["effort"] as? String, images: item["images"] as? Bool == true) }
             store?.objectWillChange.send()
+        case "push.status": NativePush.shared.received(event)
         case "asset":
             guard let store, let asset = event["asset"] as? String, pendingAssets.remove(asset) != nil, let encoded = event["base64"] as? String, encoded.count <= 2_800_000, let bytes = Data(base64Encoded: encoded), bytes.count <= 2 * 1024 * 1024 else { return }
             let referenced = store.data.messages.filter { !clearingChannels.contains($0.key) }.values.flatMap { $0 }.flatMap(\.attachments).contains { $0.path == asset }

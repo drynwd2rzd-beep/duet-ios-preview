@@ -31,7 +31,10 @@ struct ChatHeaderFade: View {
     var body: some View {
         let p = Palette(store.data.preferences, scheme)
         let strength = store.backdrop(thread).headerFade
-        LinearGradient(stops: [.init(color: p.background.opacity(strength), location: 0), .init(color: p.background.opacity(strength * 0.9), location: 0.45), .init(color: p.background.opacity(strength * 0.45), location: 0.75), .init(color: p.background.opacity(0), location: 1)], startPoint: .top, endPoint: .bottom)
-            .frame(height: 150).ignoresSafeArea(edges: .top).allowsHitTesting(false).accessibilityHidden(true)
+        let mask = LinearGradient(stops: [.init(color: .white, location: 0), .init(color: .white.opacity(0.95), location: 0.35), .init(color: .white.opacity(0.4), location: 0.72), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom)
+        ZStack {
+            Rectangle().fill(.ultraThinMaterial).mask(mask).opacity(strength)
+            LinearGradient(stops: [.init(color: p.background.opacity(strength * 0.95), location: 0), .init(color: p.background.opacity(strength * 0.55), location: 0.45), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom)
+        }.frame(height: 165).ignoresSafeArea(edges: .top).allowsHitTesting(false).accessibilityHidden(true)
     }
 }

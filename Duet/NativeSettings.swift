@@ -84,7 +84,7 @@ struct AppearanceSettings: View {
             }
             Section("文字大小") { HStack(spacing: 16) { Text("\(Int(store.data.preferences.textScale * 100))%").monospacedDigit().font(store.font(12)).foregroundStyle(p.secondary); Slider(value: $store.data.preferences.textScale, in: 0.9...1.3, step: 0.05) } }
         }.font(store.font(15)).scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("外观与字体")
-            .fileImporter(isPresented: $fontImporter, allowedContentTypes: [.item]) { result in do { try store.importFont(result.get()) } catch { store.notice(error.localizedDescription) } }
+            .sheet(isPresented: $fontImporter) { NativeFontPicker { url in fontImporter = false; guard let url else { return }; do { try store.importFont(url) } catch { store.notice(error.localizedDescription) } }.ignoresSafeArea() }
     }
 }
 
@@ -177,15 +177,17 @@ struct AutomationSettings: View {
 }
 struct NotificationSettings: View {
     @EnvironmentObject private var store: NativeStore
+    @ObservedObject private var push = NativePush.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var status = "检查中"
     @State private var pending = 0
     var body: some View { Form {
         Section("系统权限") { LabeledContent("通知", value: status); Button("开启通知") { Task { _ = await store.notifications.authorize(); store.reconcileReminders(); await refresh() } }; Button("打开系统设置") { if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) } } }
         Section("想法与待办") { Toggle("定时提醒", isOn: Binding(get: { store.data.preferences.remindersEnabled != false }, set: { store.data.preferences.remindersEnabled = $0; store.reconcileReminders() })); LabeledContent("已安排的提醒", value: "\(pending)").accessibilityIdentifier("notifications.pending") }
+        Section("远程推送") { LabeledContent("设备注册", value: push.status); Text(push.serverStatus).font(store.font(11)).foregroundStyle(.secondary); Button("重新检查推送") { push.register(); store.relay.registerPush() } }
         Section("聊天") { Toggle("AI 回复完成提醒", isOn: Binding(get: { store.data.preferences.replyNotifications != false }, set: { value in store.data.preferences.replyNotifications = value; if value { Task { _ = await store.notifications.authorize(); await refresh() } } })); Toggle("显示回复预览", isOn: Binding(get: { store.data.preferences.notificationPreview != false }, set: { store.data.preferences.notificationPreview = $0 })); Text("正在查看的聊天不弹出重复提醒。发送后切到后台，会在系统允许的续时内接收回复；强制关闭 App 后的即时通知需要 APNs 推送服务。").font(store.font(11)).foregroundStyle(.secondary) }
         Button("发送测试通知") { Task { let ok = await store.notifications.test(); store.notice(ok ? "3 秒后显示测试通知" : "系统通知未允许，请在设置中开启"); await refresh() } }.accessibilityIdentifier("notifications.test")
-    }.sheetTitle("提醒通知").task { await refresh() }.onChange(of: scenePhase) { _, phase in if phase == .active { Task { await refresh() } } } }
+    }.sheetTitle("提醒通知").task { await refresh() }.onChange(of: store.data.preferences.replyNotifications) { _, _ in store.relay.registerPush() }.onChange(of: store.data.preferences.notificationPreview) { _, _ in store.relay.registerPush() }.onChange(of: scenePhase) { _, phase in if phase == .active { Task { await refresh() } } } }
     private func refresh() async { let settings = await UNUserNotificationCenter.current().notificationSettings(); switch settings.authorizationStatus { case .authorized, .provisional, .ephemeral: status = "已允许"; case .denied: status = "未允许"; default: status = "尚未申请" }; pending = await UNUserNotificationCenter.current().pendingNotificationRequests().filter { $0.identifier.hasPrefix("idea.") }.count }
 }
 struct ModelSettings: View {

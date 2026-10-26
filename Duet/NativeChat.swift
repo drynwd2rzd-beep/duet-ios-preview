@@ -16,6 +16,7 @@ struct NativeChat: View {
     @State private var text = ""
     @State private var attachments: [ChatAttachment] = []
     @State private var photoSelection: [PhotosPickerItem] = []
+    @State private var photosPresented = false
     @State private var filesPresented = false
     @State private var cameraPresented = false
     @State private var cameraUnavailable = false
@@ -33,6 +34,8 @@ struct NativeChat: View {
     @State private var selectedDate = Date()
     @State private var searchIndex = 0
     @State private var nearBottom = true
+    @State private var followingLatest = true
+    @State private var userScrolling = false
     @State private var initiallyPositioned = false
     @State private var importingPhotos = false
     @State private var photoImportTask: Task<Void, Never>? = nil
@@ -68,17 +71,18 @@ struct NativeChat: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .principal) { Button { inputFocused = false; infoPresented = true } label: { VStack(spacing: 1) { Avatar(id: thread, size: 30); Text(store.name(thread)).font(store.font(11, weight: .medium)).lineLimit(1) }.contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel("会话选项，" + store.name(thread)).accessibilityIdentifier("chat.options") }
+            ToolbarItem(placement: .principal) { Button { inputFocused = false; infoPresented = true } label: { Avatar(id: thread, size: 42).contentShape(Circle()) }.buttonStyle(.plain).accessibilityLabel("会话选项，" + store.name(thread)).accessibilityIdentifier("chat.options") }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { withAnimation { showSearch.toggle() }; if !showSearch { query = ""; searchKind = "全部"; filterDate = false } } label: { Image(systemName: "magnifyingglass") }.accessibilityLabel("搜索聊天").accessibilityIdentifier("chat.search")
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) { if showSearch { searchControls } }
+        .safeAreaInset(edge: .top, spacing: 0) { VStack(spacing: 0) { Text(store.name(thread)).font(store.font(12, weight: .medium)).lineLimit(1).frame(maxWidth: .infinity).padding(.top, 2).padding(.bottom, 8); if showSearch { searchControls } } }
         .safeAreaInset(edge: .bottom, spacing: 0) { composer }
         .onAppear { text = store.data.drafts[thread] ?? ""; attachments = store.data.draftAttachments?[thread] ?? []; store.activeThread = thread }
         .onDisappear { photoImportTask?.cancel(); importingPhotos = false; store.data.drafts[thread] = text; store.setDraftAttachments(attachments, thread: thread); if store.activeThread == thread { store.activeThread = nil }; store.persist() }
         .onChange(of: text) { _, value in store.data.drafts[thread] = value }
         .onChange(of: attachments) { _, value in store.setDraftAttachments(value, thread: thread) }
+        .photosPicker(isPresented: $photosPresented, selection: $photoSelection, maxSelectionCount: max(1, 6 - attachments.count), matching: .images)
         .onChange(of: photoSelection) { _, items in guard !items.isEmpty else { return }; photoImportTask?.cancel(); importingPhotos = true; photoImportTask = Task { defer { if !Task.isCancelled { photoSelection = []; importingPhotos = false } }; for item in items { guard !Task.isCancelled else { return }; do { if let data = try await item.loadTransferable(type: Data.self), !Task.isCancelled, attachments.count < 6 { attachments.append(try store.savePhoto(data)) } } catch { if !Task.isCancelled { store.notice(error.localizedDescription) } } } } }
         .fileImporter(isPresented: $filesPresented, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in do { for url in try result.get().prefix(max(0, 8 - attachments.count)) { attachments.append(try store.saveFile(url)) } } catch { store.notice(error.localizedDescription) } }
         .sheet(isPresented: $infoPresented) { ConversationInfo(thread: thread).environmentObject(store) }
@@ -108,14 +112,19 @@ struct NativeChat: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .defaultScrollAnchor(.bottom)
-            .trackChatBottom($nearBottom)
+            .trackChatBottom($nearBottom, following: $followingLatest, interacting: $userScrolling) { scrollLatest(proxy) }
             .accessibilityIdentifier("chat.messages")
-            .onChange(of: messages.count) { _, _ in if !filtering && (nearBottom || !initiallyPositioned || messages.last?.author == "me") { withAnimation(reduceMotion || !initiallyPositioned ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo("chat.bottom", anchor: .bottom) } } }
-            .onChange(of: messages.last?.text) { _, _ in if nearBottom && !filtering { proxy.scrollTo("chat.bottom", anchor: .bottom) } }
+            .onChange(of: messages.count) { _, _ in if messages.last?.author == "me" { followingLatest = true }; scrollLatest(proxy) }
+            .onChange(of: messages.last?.text) { _, _ in scrollLatest(proxy) }
+            .onChange(of: inputFocused) { _, _ in scrollLatest(proxy) }
             .onChange(of: searchIndex) { _, value in if !visibleMessages.isEmpty { proxy.scrollTo(visibleMessages[min(value, visibleMessages.count - 1)].id, anchor: .center) } }
-            .onChange(of: store.requestedMessage) { _, id in if let id, messages.contains(where: { $0.id == id }) { proxy.scrollTo(id, anchor: .center); store.requestedMessage = nil } }
-            .task(id: thread) { await Task.yield(); if let id = store.requestedMessage { proxy.scrollTo(id, anchor: .center); store.requestedMessage = nil } else { proxy.scrollTo("chat.bottom", anchor: .bottom) }; initiallyPositioned = true }
+            .onChange(of: store.requestedMessage) { _, id in if let id, messages.contains(where: { $0.id == id }) { followingLatest = false; proxy.scrollTo(id, anchor: .center); store.requestedMessage = nil } }
+            .task(id: thread) { await Task.yield(); if let id = store.requestedMessage, messages.contains(where: { $0.id == id }) { followingLatest = false; proxy.scrollTo(id, anchor: .center); store.requestedMessage = nil } else { followingLatest = true; proxy.scrollTo("chat.bottom", anchor: .bottom) }; initiallyPositioned = true }
         }
+    }
+    private func scrollLatest(_ proxy: ScrollViewProxy) {
+        guard followingLatest, !userScrolling, !filtering else { return }
+        Task { @MainActor in await Task.yield(); guard followingLatest, !userScrolling, !filtering else { return }; proxy.scrollTo("chat.bottom", anchor: .bottom) }
     }
     private var searchControls: some View {
         VStack(spacing: 10) {
@@ -140,7 +149,7 @@ struct NativeChat: View {
             HStack(alignment: .bottom, spacing: 8) {
                 Menu {
                     Button("相机", systemImage: "camera") { openCamera() }
-                    PhotosPicker(selection: $photoSelection, maxSelectionCount: max(1, 6 - attachments.count), matching: .images) { Label("照片", systemImage: "photo.on.rectangle") }.disabled(attachments.count >= 6 || importingPhotos)
+                    Button("照片", systemImage: "photo.on.rectangle") { inputFocused = false; photosPresented = true }.disabled(attachments.count >= 6 || importingPhotos).accessibilityIdentifier("attachment.photos")
                     Button("文件", systemImage: "folder") { filesPresented = true }
                     Button("想法", systemImage: "lightbulb") { idea = Idea(text: text) }
                 } label: { Image(systemName: "plus").font(.system(size: 21, weight: .regular)).frame(width: 44, height: 44).glassCircle() }.accessibilityLabel("添加内容").accessibilityIdentifier("message.attach")
@@ -153,7 +162,7 @@ struct NativeChat: View {
         }.padding(.top, 10).padding(.bottom, 9).background { LinearGradient(colors: [p.background.opacity(0), p.background.opacity(0.82)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false) }
     }
     private var canSend: Bool { !store.relay.isClearing(thread) && (store.isReplying(thread) || !importingPhotos && (!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty)) }
-    private func send() { store.send(thread: thread, text: text, attachments: attachments, editing: editing); text = ""; attachments = []; editing = nil }
+    private func send() { followingLatest = true; store.send(thread: thread, text: text, attachments: attachments, editing: editing); text = ""; attachments = []; editing = nil }
     private func chooseMention(_ id: String) { if let range = text.range(of: "@", options: .backwards) { text.replaceSubrange(range.lowerBound..., with: "@" + (id == "all" ? "所有人" : store.name(id)) + " ") }; inputFocused = true }
     private func saveMemory(_ message: ChatMessage, provider: String) { memory = MemoryRequest(provider: provider, memory: Memory(text: String(message.text.prefix(160)), thread: thread, message: message.id, date: message.date)) }
     private func openCamera() { inputFocused = false; Task { let available = UIImagePickerController.isSourceTypeAvailable(.camera); let granted = available ? await AVCaptureDevice.requestAccess(for: .video) : false; if granted { cameraPresented = true } else { cameraUnavailable = true } } }

@@ -115,4 +115,41 @@ final class DuetUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["从一句话开始"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.staticTexts["Latest test reply"].exists)
     }
+
+    func testReplyFollowsAboveComposerWithKeyboardVisible() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--uitest-history", "--uitest-replies"]
+        app.launch()
+        XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12))
+        app.buttons["thread.gpt"].tap()
+        let input = app.descendants(matching: .any)["message.input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); app.typeText("reply test")
+        let send = app.buttons["message.send"]; send.tap()
+        let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Stream reply complete")).firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 12))
+        XCTAssertTrue(reply.isHittable, "A new reply must remain visible above the keyboard without manually scrolling")
+        XCTAssertLessThanOrEqual(reply.frame.maxY, send.frame.minY + 12)
+        attach(app, "Reply Follow With Keyboard")
+    }
+
+    func testPhotoMenuPresentsSystemPicker() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitesting"]; app.launch()
+        XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12)); app.buttons["thread.gpt"].tap()
+        app.buttons["message.attach"].tap()
+        let photos = app.buttons["照片"].firstMatch
+        XCTAssertTrue(photos.waitForExistence(timeout: 5)); photos.tap()
+        let cancel = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", "Cancel", "取消")).firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 10), "The menu must present the native photo picker")
+        attach(app, "Native Photo Picker"); cancel.tap()
+    }
+
+    func testFontImportPresentsNativeDocumentPicker() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitesting"]; app.launch()
+        XCTAssertTrue(app.tabBars.buttons["想法"].waitForExistence(timeout: 12)); app.tabBars.buttons["想法"].tap()
+        app.buttons["open.settings"].tap(); app.buttons["settings.appearance"].tap(); app.buttons["font.import"].tap()
+        let cancel = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", "Cancel", "取消")).firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 10), "Font import must open a native file picker that accepts font data")
+        attach(app, "Native Font Document Picker"); cancel.tap()
+    }
 }
