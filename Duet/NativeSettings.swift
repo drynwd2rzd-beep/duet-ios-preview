@@ -50,7 +50,14 @@ struct NativeSettings: View {
             .onAppear { if store.relay.pendingPairing != nil { settingsPath = [.accounts] } }
     }
     private func row(_ route: SettingsRoute, icon: String, title: String, detail: String = "", id: String) -> some View {
-        NavigationLink(value: route) { HStack(spacing: 12) { Image(systemName: icon).font(.system(size: 18, weight: .regular)).foregroundStyle(p.secondary).frame(width: 24); Text(title).font(store.font(15)).layoutPriority(1); Spacer(minLength: 8); if !detail.isEmpty { Text(detail).font(store.font(12)).foregroundStyle(p.secondary).lineLimit(1) } }.accessibilityIdentifier(id)
+        NavigationLink(value: route) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).font(.system(size: 18, weight: .regular)).foregroundStyle(p.secondary).frame(width: 24)
+                Text(title).font(store.font(15)).layoutPriority(1)
+                Spacer(minLength: 8)
+                if !detail.isEmpty { Text(detail).font(store.font(12)).foregroundStyle(p.secondary).lineLimit(1) }
+            }
+        }.accessibilityIdentifier(id)
     }
 }
 
