@@ -51,18 +51,8 @@ struct Palette {
     }
 }
 extension View {
-    @ViewBuilder func nativePanel(radius: CGFloat = LayoutMetrics.card) -> some View {
-        if #available(iOS 26.0, *) { self.glassEffect(.regular, in: .rect(cornerRadius: radius)) }
-        else { self.background(.regularMaterial, in: RoundedRectangle(cornerRadius: radius)) }
-    }
-    @ViewBuilder func glassCapsule() -> some View {
-        if #available(iOS 26.0, *) { self.glassEffect(.regular, in: .capsule) }
-        else { self.background(.ultraThinMaterial, in: Capsule()) }
-    }
-    @ViewBuilder func glassCircle() -> some View {
-        if #available(iOS 26.0, *) { self.glassEffect(.regular.interactive(), in: .circle) }
-        else { self.background(.ultraThinMaterial, in: Circle()) }
-    }
+    func mattePanel(radius: CGFloat = LayoutMetrics.card) -> some View { modifier(MatteSurface(radius: radius)) }
+    func matteCircle() -> some View { modifier(MatteSurface(radius: 100)) }
     @ViewBuilder func trackChatBottom(_ binding: Binding<Bool>, following: Binding<Bool>, interacting: Binding<Bool>, contentChanged: @escaping () -> Void) -> some View {
         if #available(iOS 18.0, *) {
             self.onScrollGeometryChange(for: ChatViewport.self) { geometry in
@@ -134,16 +124,44 @@ struct PrimaryAction: View {
     var title: String
     var action: () -> Void
     var body: some View {
-        Group { if #available(iOS 26.0, *) { Button(action: action) { Text(title).font(store.font(14, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 8) }.buttonStyle(.glassProminent) }
-        else { Button(action: action) { Text(title).font(store.font(14, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 8) }.buttonStyle(.borderedProminent).buttonBorderShape(.capsule) } }.tint(Palette(store.data.preferences, scheme).accent)
+        let p = Palette(store.data.preferences, scheme)
+        Button(action: action) { Text(title).font(store.font(14, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 12).foregroundStyle(p.background).background(p.accent, in: RoundedRectangle(cornerRadius: LayoutMetrics.field)) }.buttonStyle(.plain)
+    }
+}
+
+private struct MatteSurface: ViewModifier {
+    @EnvironmentObject private var store: NativeStore
+    @Environment(\.colorScheme) private var scheme
+    let radius: CGFloat
+    func body(content: Content) -> some View {
+        let p = Palette(store.data.preferences, scheme)
+        content.background(p.background, in: RoundedRectangle(cornerRadius: radius))
+            .overlay(RoundedRectangle(cornerRadius: radius).stroke(p.foreground.opacity(0.065), lineWidth: 0.5))
+    }
+}
+
+extension ToolbarContent {
+    @ToolbarContentBuilder func matteToolbar() -> some ToolbarContent {
+        if #available(iOS 26.0, *) { self.sharedBackgroundVisibility(.hidden) }
+        else { self }
     }
 }
 struct SheetTitle: ViewModifier {
     @EnvironmentObject private var store: NativeStore
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.dismiss) private var dismiss
     var title: String
-    func body(content: Content) -> some View { content.navigationBarTitleDisplayMode(.inline).toolbar { ToolbarItem(placement: .principal) { Text(title).font(store.font(17, weight: .medium)) } } }
+    var back = true
+    func body(content: Content) -> some View {
+        content.navigationBarTitleDisplayMode(.inline).navigationBarBackButtonHidden(back)
+            .presentationBackground(Palette(store.data.preferences, scheme).background)
+            .toolbar {
+                ToolbarItem(placement: .principal) { Text(title).font(store.font(17, weight: .medium)) }.matteToolbar()
+                if back { ToolbarItem(placement: .topBarLeading) { Button { dismiss() } label: { Image(systemName: "chevron.left").font(.system(size: 19)).frame(width: 32, height: 44).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel("返回") }.matteToolbar() }
+            }
+    }
 }
-extension View { func sheetTitle(_ title: String) -> some View { modifier(SheetTitle(title: title)) } }
+extension View { func sheetTitle(_ title: String, back: Bool = true) -> some View { modifier(SheetTitle(title: title, back: back)) } }
 enum SettingsRoute: Hashable {
     case appearance, people, profile(String), personas, persona(String), accounts, automation, notifications, model(String), background(String), role(String, String), history
 }

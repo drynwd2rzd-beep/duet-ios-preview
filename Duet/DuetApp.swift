@@ -23,11 +23,12 @@ struct NativeRoot: View {
                 ChatsHome()
                 .navigationDestination(for: String.self) { id in NativeChat(thread: id) }
                 .toolbar(.hidden, for: .navigationBar)
-            }.tabItem { Label("聊天", systemImage: "bubble.left").labelStyle(.iconOnly) }.tag("chats").accessibilityIdentifier("tab.chats")
+            }.tabItem { Label("聊天", systemImage: "bubble.left").labelStyle(.iconOnly) }.tag("chats")
             NavigationStack { IdeasHome().toolbar(.hidden, for: .navigationBar) }
-                .tabItem { Label("想法", systemImage: "lightbulb").labelStyle(.iconOnly) }.tag("ideas").accessibilityIdentifier("tab.ideas")
+                .tabItem { Label("想法", systemImage: "lightbulb").labelStyle(.iconOnly) }.tag("ideas")
         }
-        .toolbar(tab == "chats" && !chatPath.isEmpty ? .hidden : .visible, for: .tabBar)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) { if tab != "chats" || chatPath.isEmpty { matteTabs } }
         .background(p.background)
         .tint(p.accent)
         .environment(\.font, store.font(14))
@@ -38,11 +39,28 @@ struct NativeRoot: View {
         .onAppear { store.notifications.install(store: store); if !store.testMode { store.relay.connect() } }
         .onChange(of: scenePhase) { _, phase in if !store.testMode { store.relay.sceneChanged(phase); if phase == .active { store.reconcileReminders() } else if phase == .background { store.persist() } } }
     }
+    private var matteTabs: some View {
+        HStack(spacing: 34) {
+            tabButton("chats", label: "聊天", icon: "bubble.left")
+            tabButton("ideas", label: "想法", icon: "lightbulb")
+        }.padding(.horizontal, 22).padding(.vertical, 4)
+            .background(p.background, in: Capsule())
+            .overlay(Capsule().stroke(p.foreground.opacity(0.055), lineWidth: 0.5))
+            .padding(.top, 8).padding(.bottom, 7)
+    }
+    private func tabButton(_ value: String, label: String, icon: String) -> some View {
+        Button { tab = value } label: {
+            Image(systemName: icon).font(.system(size: 21, weight: tab == value ? .medium : .regular))
+                .foregroundStyle(tab == value ? p.accent : p.secondary).frame(width: 44, height: 44).contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityLabel(label).accessibilityIdentifier("tab." + value)
+            .accessibilityAddTraits(tab == value ? .isSelected : [])
+    }
 }
 
 struct ChatsHome: View {
     @EnvironmentObject private var store: NativeStore
     @Environment(\.colorScheme) private var scheme
+    @State private var pendingPin: String? = nil
     private var p: Palette { Palette(store.data.preferences, scheme) }
     private var ordered: [String] {
         let base = ["group", "gpt", "claude"]
@@ -68,13 +86,22 @@ struct ChatsHome: View {
                             .listRowSeparatorTint(p.foreground.opacity(0.065))
                             .listRowBackground(p.dark ? p.surface : Color.white.opacity(0.78))
                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                Button { store.pin(id) } label: { Label(store.data.pinned.contains(id) ? "取消置顶" : "置顶", systemImage: store.data.pinned.contains(id) ? "pin.slash" : "pin") }.tint(p.accent)
+                                Button { changePin(id) } label: { Label(store.data.pinned.contains(id) ? "取消置顶" : "置顶", systemImage: store.data.pinned.contains(id) ? "pin.slash" : "pin") }.tint(p.accent).disabled(pendingPin != nil)
                             }
                     }
                 }
             }.listStyle(.insetGrouped).listSectionSpacing(LayoutMetrics.section)
-                .scrollContentBackground(.hidden).contentMargins(.top, 0).transaction { $0.animation = nil }
+                .scrollContentBackground(.hidden).contentMargins(.top, 0)
         }.background(p.background).foregroundStyle(p.foreground)
+    }
+    private func changePin(_ id: String) {
+        guard pendingPin == nil else { return }; pendingPin = id
+        Task { @MainActor in
+            // Let the native swipe drawer close before its row moves.
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            withAnimation(.easeInOut(duration: 0.22)) { store.pin(id) }
+            pendingPin = nil
+        }
     }
     private func threadRow(_ id: String) -> some View {
         HStack(spacing: 11) {
@@ -113,8 +140,8 @@ struct IdeasHome: View {
             HStack(spacing: 10) {
                 Text("Ideas").font(store.font(24, weight: .medium)).foregroundStyle(p.foreground)
                 Spacer()
-                Button { store.settingsPresented = true } label: { Image(systemName: "gearshape").font(.system(size: 16)).frame(width: 36, height: 36).glassCircle() }.accessibilityLabel("设置").accessibilityIdentifier("open.settings")
-                Button { editing = Idea(later: filter == 1) } label: { Image(systemName: "plus").font(.system(size: 18)).frame(width: 36, height: 36).glassCircle() }.accessibilityLabel("记录想法").accessibilityIdentifier("idea.add")
+                Button { store.settingsPresented = true } label: { Image(systemName: "gearshape").font(.system(size: 16)).frame(width: 36, height: 36).matteCircle() }.accessibilityLabel("设置").accessibilityIdentifier("open.settings")
+                Button { editing = Idea(later: filter == 1) } label: { Image(systemName: "plus").font(.system(size: 18)).frame(width: 36, height: 36).matteCircle() }.accessibilityLabel("记录想法").accessibilityIdentifier("idea.add")
             }.padding(.horizontal, LayoutMetrics.page).padding(.top, 14).padding(.bottom, 16)
             Picker("想法范围", selection: $filter) { Text("今天").tag(0); Text("以后").tag(1); Text("全部").tag(2) }
                 .pickerStyle(.segmented).controlSize(.small).padding(.horizontal, LayoutMetrics.page).padding(.bottom, 12)
@@ -175,7 +202,7 @@ struct IdeaEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State var idea: Idea
     var body: some View {
-        NavigationStack { Form { TextField("记下此刻的想法…", text: $idea.text, axis: .vertical).lineLimit(5...10).font(store.font(16)).accessibilityIdentifier("idea.input"); Picker("放到", selection: $idea.later) { Text("今天").tag(false); Text("以后").tag(true) }; Toggle("待办", isOn: $idea.task) }.scrollContentBackground(.hidden).sheetTitle("想法").toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("保存") { store.saveIdea(idea); dismiss() }.disabled(idea.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityIdentifier("idea.save") } }.background(Palette(store.data.preferences, .light).background) }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)
+        NavigationStack { Form { TextField("记下此刻的想法…", text: $idea.text, axis: .vertical).lineLimit(5...10).font(store.font(16)).accessibilityIdentifier("idea.input"); Picker("放到", selection: $idea.later) { Text("今天").tag(false); Text("以后").tag(true) }; Toggle("待办", isOn: $idea.task) }.scrollContentBackground(.hidden).sheetTitle("想法", back: false).toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }.matteToolbar(); ToolbarItem(placement: .confirmationAction) { Button("保存") { store.saveIdea(idea); dismiss() }.disabled(idea.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityIdentifier("idea.save") }.matteToolbar() }.background(Palette(store.data.preferences, .light).background) }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)
     }
 }
 struct ReminderEditor: View {
@@ -184,6 +211,6 @@ struct ReminderEditor: View {
     @State var idea: Idea
     @State private var date = Date.now.addingTimeInterval(3600)
     var body: some View {
-        NavigationStack { Form { Text(idea.text).font(store.font(14)); DatePicker("提醒时间", selection: $date, in: Date.now..., displayedComponents: [.date, .hourAndMinute]); Button("保存提醒") { idea.reminder = date; Task { await store.setReminder(idea); dismiss() } }; if idea.reminder != nil { Button("取消提醒", role: .destructive) { idea.reminder = nil; UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [idea.id.uuidString]); store.saveIdea(idea); dismiss() } } }.sheetTitle("提醒").toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } } } }.onAppear { date = idea.reminder ?? Date.now.addingTimeInterval(3600) }.presentationDetents([.medium, .large]).presentationCornerRadius(LayoutMetrics.sheet)
+        NavigationStack { Form { Text(idea.text).font(store.font(14)); DatePicker("提醒时间", selection: $date, in: Date.now..., displayedComponents: [.date, .hourAndMinute]); Button("保存提醒") { idea.reminder = date; Task { await store.setReminder(idea); dismiss() } }; if idea.reminder != nil { Button("取消提醒", role: .destructive) { idea.reminder = nil; UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [idea.id.uuidString]); store.saveIdea(idea); dismiss() } } }.sheetTitle("提醒", back: false).toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }.matteToolbar() } }.onAppear { date = idea.reminder ?? Date.now.addingTimeInterval(3600) }.presentationDetents([.medium, .large]).presentationCornerRadius(LayoutMetrics.sheet)
     }
 }

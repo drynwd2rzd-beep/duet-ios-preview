@@ -8,7 +8,7 @@ assert len(swift)>=6,'Native source files missing'
 for file in swift:
     text=file.read_text(encoding='utf-8')
     assert 'import WebKit' not in text and 'WKWebView' not in text and 'loadHTMLString' not in text,'Web UI is not allowed: '+file.name
-assert 'glassEffect' in (root/'Duet/NativeStyle.swift').read_text(encoding='utf-8')
+assert not any('glassEffect(' in f.read_text(encoding='utf-8') or '.glassProminent' in f.read_text(encoding='utf-8') for f in swift),'The app uses matte surfaces, not Liquid Glass'
 assert 'maximumZoomScale = 4' in (root/'Duet/NativePhotos.swift').read_text(encoding='utf-8')
 assert (root/'Duet/Assets.xcassets/BrandGPT.imageset/Contents.json').is_file()
 if args.ipa:

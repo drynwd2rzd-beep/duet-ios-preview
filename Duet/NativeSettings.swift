@@ -44,9 +44,9 @@ struct NativeSettings: View {
                 Section { row(.history, icon: "clock.arrow.circlepath", title: "聊天记录", id: "settings.history") }
             }.listSectionSpacing(18).contentMargins(.top, 12).scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground)
                 .navigationTitle("设置").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }.matteToolbar() }
                 .navigationDestination(for: SettingsRoute.self) { settingsDestination($0) }
-        }.tint(p.accent).presentationDetents([.large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)
+        }.tint(p.accent).presentationBackground(p.background).presentationDetents([.large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)
             .onAppear { if store.relay.pendingPairing != nil { settingsPath = [.accounts] } }
             .onChange(of: store.relay.pendingPairing?.url) { _, value in if value != nil { settingsPath = [.accounts] } }
     }
@@ -139,7 +139,7 @@ struct PersonaSettings: View {
             Picker("内容", selection: $tab) { Text("角色档案").tag(0); Text("记忆").tag(1) }.pickerStyle(.segmented).padding(.horizontal, 20)
             if tab == 0 { ScrollView { VStack(spacing: 9) { ForEach(["identity", "values", "relationship", "voice"], id: \.self) { key in NavigationLink(value: SettingsRoute.role(provider, key)) { HStack { VStack(alignment: .leading, spacing: 7) { Text(roleNames[key]!).font(store.font(13, weight: .medium)); Text(roleText(persona, key).isEmpty ? "点此自由设定" : roleText(persona, key)).font(store.font(11)).foregroundStyle(p.secondary).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(p.secondary) }.padding(15).background(p.surface, in: RoundedRectangle(cornerRadius: LayoutMetrics.field)) }.buttonStyle(.plain) }; Text("角色与记忆分别保存。连接成功后，会随你发出的消息交给对应伙伴。").font(store.font(11)).foregroundStyle(p.secondary).lineSpacing(4).padding(.vertical, 12) }.padding(20) } }
             else { List { Section("对你的称呼") { TextField("私聊 · 留空跟随我的名字", text: callName(group: false)).accessibilityIdentifier("persona.private-call-name"); TextField("群聊 · 留空跟随我的名字", text: callName(group: true)).accessibilityIdentifier("persona.group-call-name"); Text("只影响这位伙伴。群聊不使用私聊称呼；留空时使用“" + store.name("self") + "”。").font(store.font(11)).foregroundStyle(p.secondary) }; Section("确认保存的记忆") { if persona.memories.isEmpty { Text("记下你希望它记住的事。").font(store.font(12)).foregroundStyle(p.secondary) }; ForEach(persona.memories) { item in Button { editing = item } label: { VStack(alignment: .leading, spacing: 6) { Text(item.text).font(store.font(13)).foregroundStyle(p.foreground); Text(item.kind + " · " + (item.group ? "群聊也可用" : "仅这个伙伴")).font(store.font(11)).foregroundStyle(p.secondary) }.padding(.vertical, 5) }.buttonStyle(.plain).swipeActions { Button(role: .destructive) { store.data.personas[provider]?.memories.removeAll { $0.id == item.id } } label: { Label("删除", systemImage: "trash") } } } } }.scrollContentBackground(.hidden) }
-        }.background(p.background).foregroundStyle(p.foreground).sheetTitle("个性化").toolbar { if tab == 1 { ToolbarItem(placement: .topBarTrailing) { Button { editing = Memory() } label: { Image(systemName: "plus") }.accessibilityLabel("添加记忆") } } }.sheet(item: $editing) { MemoryEditor(provider: provider, memory: $0).environmentObject(store) }
+        }.background(p.background).foregroundStyle(p.foreground).sheetTitle("个性化").toolbar { if tab == 1 { ToolbarItem(placement: .topBarTrailing) { Button { editing = Memory() } label: { Image(systemName: "plus") }.accessibilityLabel("添加记忆") }.matteToolbar() } }.sheet(item: $editing) { MemoryEditor(provider: provider, memory: $0).environmentObject(store) }
     }
     private func callName(group: Bool) -> Binding<String> { Binding(get: { (group ? persona.groupCallName : persona.userCallName) ?? "" }, set: { value in var edited = persona; if group { edited.groupCallName = String(value.prefix(24)) } else { edited.userCallName = String(value.prefix(24)) }; store.data.personas[provider] = edited }) }
 }
@@ -163,7 +163,7 @@ struct MemoryEditor: View {
             Toggle("允许群聊使用", isOn: $memory.group)
             if let thread = memory.thread, let message = memory.message { Section("来自聊天 · " + memory.date.formatted(.dateTime.month().day())) { Button("查看来源消息") { store.requestedMessage = message; store.settingsPresented = false; store.requestedThread = thread; dismiss() } } }
             Text("仅保存你确认的内容；两个伙伴的私聊记忆分别保存。").font(store.font(11)).foregroundStyle(.secondary)
-        }.sheetTitle("保存给 " + store.name(provider)).toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("保存") { store.saveMemory(memory, provider: provider); dismiss() }.disabled(memory.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) } } }.presentationDetents([.medium, .large]).presentationCornerRadius(LayoutMetrics.sheet)
+        }.sheetTitle("保存给 " + store.name(provider), back: false).toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }.matteToolbar(); ToolbarItem(placement: .confirmationAction) { Button("保存") { store.saveMemory(memory, provider: provider); dismiss() }.disabled(memory.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }.matteToolbar() } }.presentationDetents([.medium, .large]).presentationCornerRadius(LayoutMetrics.sheet)
     }
 }
 
@@ -237,7 +237,7 @@ struct ChatBackgroundSettings: View {
             Section {
                 ZStack(alignment: .top) {
                     NativeBackdrop(thread: thread, options: previewOptions)
-                    VStack(spacing: 6) { Avatar(id: thread, size: 32); Text(store.name(thread)).font(store.font(12, weight: .medium)); Spacer(); Text("背景预览").font(store.font(12)).foregroundStyle(p.foreground).padding(12).nativePanel(radius: LayoutMetrics.field) }.padding(20)
+                    VStack(spacing: 6) { Avatar(id: thread, size: 32); Text(store.name(thread)).font(store.font(12, weight: .medium)); Spacer(); Text("背景预览").font(store.font(12)).foregroundStyle(p.foreground).padding(12).mattePanel(radius: LayoutMetrics.field) }.padding(20)
                 }.frame(height: 290).clipShape(RoundedRectangle(cornerRadius: LayoutMetrics.card))
                     .gesture(DragGesture().updating($drag) { value, state, _ in state = value.translation }.onEnded { value in options.x = max(-1, min(1, options.x + Double(value.translation.width / 140))); options.y = max(-1, min(1, options.y + Double(value.translation.height / 180))) })
                     .listRowInsets(EdgeInsets()).listRowBackground(Color.clear).accessibilityIdentifier("background.preview")
@@ -282,10 +282,10 @@ struct ConversationInfo: View {
                     Button { store.pin(thread) } label: { Label(store.data.pinned.contains(thread) ? "取消置顶" : "置顶会话", systemImage: store.data.pinned.contains(thread) ? "pin.slash" : "pin") }
                 }
                 Section { Button("清空聊天记录", role: .destructive) { clearPresented = true }.accessibilityIdentifier("chat.clear-history") }
-            }.listSectionSpacing(18).contentMargins(.top, 12).scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("会话选项")
-                .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("关闭会话选项") } }
+            }.listSectionSpacing(18).contentMargins(.top, 12).scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("会话选项", back: false)
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("关闭会话选项") }.matteToolbar() }
                 .navigationDestination(for: SettingsRoute.self) { settingsDestination($0) }
-        }.presentationDetents([.large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)
+        }.presentationBackground(p.background).presentationDetents([.large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)
             .sheet(item: $idea) { IdeaEditor(idea: $0).environmentObject(store) }
             .onAppear { store.relay.refreshStatus(); store.relay.refreshModels() }
             .confirmationDialog("清空这个聊天的全部消息？", isPresented: $clearPresented, titleVisibility: .visible) { Button("清空记录", role: .destructive) { store.relay.clearHistory([thread]); dismiss() }; Button("取消", role: .cancel) { } } message: { Text("会同步清空电脑上的会话记录，并停止当前回复。独立保存的记忆保留。") }

@@ -40,10 +40,7 @@ struct ChatHeaderFade: View {
                 let opacity = (1 + cos(.pi * position)) / 2
                 return .init(color: .white.opacity(opacity), location: CGFloat(position))
             }
-            ZStack {
-                Rectangle().fill(.ultraThinMaterial)
-                p.background.opacity(0.28)
-            }
+            Rectangle().fill(p.background)
             .frame(height: height)
             .mask(LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom))
             .opacity(strength)

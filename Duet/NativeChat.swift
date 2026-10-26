@@ -12,6 +12,7 @@ struct NativeChat: View {
     @EnvironmentObject private var store: NativeStore
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dismiss) private var dismiss
     let thread: String
     @State private var text = ""
     @State private var attachments: [ChatAttachment] = []
@@ -70,12 +71,14 @@ struct NativeChat: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .principal) { Button { inputFocused = false; infoPresented = true } label: { Avatar(id: thread, size: 42).contentShape(Circle()) }.buttonStyle(.plain).accessibilityLabel("会话选项，" + store.name(thread)).accessibilityIdentifier("chat.options") }
+            ToolbarItem(placement: .topBarLeading) { Button { dismiss() } label: { Image(systemName: "chevron.left").font(.system(size: 20, weight: .regular)).frame(width: 32, height: 44).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel("返回") }.matteToolbar()
+            ToolbarItem(placement: .principal) { Button { inputFocused = false; infoPresented = true } label: { Avatar(id: thread, size: 42).contentShape(Circle()) }.buttonStyle(.plain).accessibilityLabel("会话选项，" + store.name(thread)).accessibilityIdentifier("chat.options") }.matteToolbar()
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { withAnimation { showSearch.toggle() }; if !showSearch { query = ""; searchKind = "全部"; filterDate = false } } label: { Image(systemName: "magnifyingglass") }.accessibilityLabel("搜索聊天").accessibilityIdentifier("chat.search")
-            }
+            }.matteToolbar()
         }
         .onAppear { text = store.data.drafts[thread] ?? ""; attachments = store.data.draftAttachments?[thread] ?? []; store.activeThread = thread }
         .onDisappear { photoImportTask?.cancel(); importingPhotos = false; store.data.drafts[thread] = text; store.setDraftAttachments(attachments, thread: thread); if store.activeThread == thread { store.activeThread = nil }; store.persist() }
@@ -151,12 +154,12 @@ struct NativeChat: View {
                     Button("照片", systemImage: "photo.on.rectangle") { inputFocused = false; photosPresented = true }.disabled(attachments.count >= 6 || importingPhotos).accessibilityIdentifier("attachment.photos")
                     Button("文件", systemImage: "folder") { filesPresented = true }
                     Button("想法", systemImage: "lightbulb") { idea = Idea(text: text) }
-                } label: { Image(systemName: "plus").font(.system(size: 21, weight: .regular)).frame(width: 44, height: 44).glassCircle() }.accessibilityLabel("添加内容").accessibilityIdentifier("message.attach")
+                } label: { Image(systemName: "plus").font(.system(size: 21, weight: .regular)).frame(width: 44, height: 44).matteCircle() }.accessibilityLabel("添加内容").accessibilityIdentifier("message.attach")
                 HStack(alignment: .bottom, spacing: 8) {
                     TextField("发消息", text: $text, axis: .vertical).font(store.font(16)).lineLimit(1...5).padding(.vertical, 8).focused($inputFocused).accessibilityIdentifier("message.input")
                     if thread == "group" { Button { if !text.isEmpty && !text.hasSuffix(" ") { text += " " }; text += "@"; inputFocused = true } label: { Image(systemName: "at").font(.system(size: 18)).foregroundStyle(p.secondary).frame(width: 26, height: 36) }.accessibilityLabel("提及伙伴") }
                     Button { if stopsReply { store.stopReplies(thread) } else { send() } } label: { Image(systemName: stopsReply ? "stop.fill" : "arrow.up").font(.system(size: 18, weight: .medium)).foregroundStyle(p.background).frame(width: 36, height: 36).background(p.accent.opacity(canSend ? 1 : 0.35), in: Circle()) }.disabled(!canSend).accessibilityLabel(stopsReply ? "停止回复" : "发送消息").accessibilityIdentifier("message.send")
-                }.padding(5).padding(.leading, 10).nativePanel(radius: 26)
+                }.padding(5).padding(.leading, 10).mattePanel(radius: 26)
             }.padding(.horizontal, LayoutMetrics.page)
         }.padding(.top, 10).padding(.bottom, 9)
     }
@@ -194,7 +197,7 @@ struct MessageCell: View {
             if !message.text.isEmpty || message.status == "replying" {
                 VStack(alignment: .trailing, spacing: 6) { if message.text.isEmpty { TypingIndicator(color: p.secondary).frame(height: 18).accessibilityLabel("正在回复") } else { Text(message.text).font(store.font(16)).lineSpacing(4).textSelection(.enabled).multilineTextAlignment(.leading); Text(message.date.formatted(date: .omitted, time: .shortened)).font(store.font(10)).foregroundStyle(p.secondary) } }
                     .padding(.horizontal, 15).padding(.vertical, 11)
-                    .background(mine ? p.mine : (store.data.backgrounds[thread] != nil ? p.background.opacity(p.dark ? 0.85 : 0.88) : p.surface), in: RoundedRectangle(cornerRadius: LayoutMetrics.card))
+                    .background { RoundedRectangle(cornerRadius: LayoutMetrics.card).fill(p.background); RoundedRectangle(cornerRadius: LayoutMetrics.card).fill(mine ? p.mine : p.surface) }
                     .contextMenu { Button("复制", systemImage: "doc.on.doc") { UIPasteboard.general.string = message.text; store.notice("已复制") }; if mine { Button("编辑并重发", systemImage: "square.and.pencil", action: onEdit) }; Button("保存为想法", systemImage: "lightbulb", action: onIdea); Button("加入伙伴记忆", systemImage: "note.text", action: onMemory) }
             }
             if ["sending", "failed", "stopped", "demo"].contains(message.status) { status }

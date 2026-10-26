@@ -13,7 +13,7 @@ struct NativePhotoStack: View {
         VStack(alignment: .trailing, spacing: 6) {
             if expanded {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: min(3, photos.count)), spacing: 6) { ForEach(Array(photos.enumerated()), id: \.element.id) { position, photo in Button { open(photos, position) } label: { if let image = store.image(photo.path) { Image(uiImage: image).resizable().scaledToFill().frame(width: 67, height: 72).clipShape(RoundedRectangle(cornerRadius: 12)) } }.buttonStyle(.plain).accessibilityLabel("查看第 \(position + 1) 张照片") } }.frame(width: 218)
-                Button { withAnimation(animation) { expanded = false } } label: { Image(systemName: "square.stack").font(.system(size: 14)).padding(8).glassCircle() }.accessibilityLabel("叠放照片")
+                Button { withAnimation(animation) { expanded = false } } label: { Image(systemName: "square.stack").font(.system(size: 14)).padding(8).matteCircle() }.accessibilityLabel("叠放照片")
             } else {
                 ZStack(alignment: .bottomTrailing) {
                     ZStack {
@@ -42,7 +42,7 @@ struct NativeGallery: View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack(spacing: 0) {
-                HStack { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 17)).frame(width: 40, height: 40).glassCircle() }.accessibilityLabel("关闭照片").accessibilityIdentifier("photo.close"); Spacer(); Text("\(index + 1) / \(photos.count)").font(store.font(12)).foregroundStyle(.white.opacity(0.8)); Spacer(); Color.clear.frame(width: 40, height: 40) }.padding(.horizontal, 18).padding(.vertical, 8)
+                HStack { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 17)).frame(width: 40, height: 40).matteCircle() }.accessibilityLabel("关闭照片").accessibilityIdentifier("photo.close"); Spacer(); Text("\(index + 1) / \(photos.count)").font(store.font(12)).foregroundStyle(.white.opacity(0.8)); Spacer(); Color.clear.frame(width: 40, height: 40) }.padding(.horizontal, 18).padding(.vertical, 8)
                 TabView(selection: $index) { ForEach(Array(photos.enumerated()), id: \.element.id) { position, photo in ZoomablePhoto(image: store.image(photo.path), identity: photo.path, zoomChanged: { if index == position { zoomed = $0 } }).tag(position).accessibilityIdentifier("photo.zoomable") } }.tabViewStyle(.page(indexDisplayMode: .never)).offset(y: offset).onChange(of: index) { _, _ in zoomed = false }
                 ScrollView(.horizontal) { HStack(spacing: 6) { ForEach(Array(photos.enumerated()), id: \.element.id) { position, photo in Button { index = position } label: { if let image = store.image(photo.path) { Image(uiImage: image).resizable().scaledToFill().frame(width: 34, height: 40).clipShape(RoundedRectangle(cornerRadius: 6)).opacity(index == position ? 1 : 0.45) } }.buttonStyle(.plain) } }.frame(maxWidth: .infinity).padding(16) }.frame(height: 76)
             }

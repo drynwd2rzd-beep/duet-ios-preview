@@ -34,7 +34,7 @@ final class DuetUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         app.launch()
-        let ideas = app.tabBars.buttons["想法"]
+        let ideas = app.buttons["tab.ideas"]
         XCTAssertTrue(ideas.waitForExistence(timeout: 12))
         ideas.tap()
         attach(app, "Native Ideas")
@@ -59,8 +59,8 @@ final class DuetUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         app.launch()
-        XCTAssertTrue(app.tabBars.buttons["想法"].waitForExistence(timeout: 12))
-        app.tabBars.buttons["想法"].tap()
+        XCTAssertTrue(app.buttons["tab.ideas"].waitForExistence(timeout: 12))
+        app.buttons["tab.ideas"].tap()
         app.buttons["open.settings"].tap()
         let accounts = app.buttons["settings.accounts"]
         XCTAssertTrue(accounts.waitForExistence(timeout: 6))
@@ -81,10 +81,20 @@ final class DuetUITests: XCTestCase {
         let pin = app.buttons["置顶"].firstMatch
         XCTAssertTrue(pin.waitForExistence(timeout: 4))
         pin.tap()
+        let gpt = app.buttons["thread.gpt"], claude = app.buttons["thread.claude"]
+        let moved = NSPredicate { _, _ in gpt.exists && claude.exists && gpt.frame.minY < claude.frame.minY }
+        expectation(for: moved, evaluatedWith: nil); waitForExpectations(timeout: 5)
+        for label in ["取消置顶", "置顶", "取消置顶", "置顶"] {
+            gpt.swipeRight()
+            let action = app.buttons[label].firstMatch
+            XCTAssertTrue(action.waitForExistence(timeout: 4)); action.tap()
+            let closed = NSPredicate { _, _ in !app.buttons[label].firstMatch.exists }
+            expectation(for: closed, evaluatedWith: nil); waitForExpectations(timeout: 5)
+        }
         for _ in 0..<3 {
-            app.tabBars.buttons["想法"].tap()
+            app.buttons["tab.ideas"].tap()
             XCTAssertTrue(app.buttons["open.settings"].waitForExistence(timeout: 4))
-            app.tabBars.buttons["聊天"].tap()
+            app.buttons["tab.chats"].tap()
             app.buttons["thread.gpt"].tap()
             XCTAssertTrue(app.buttons["chat.options"].waitForExistence(timeout: 4))
             app.navigationBars.buttons.element(boundBy: 0).tap()
@@ -174,7 +184,7 @@ final class DuetUITests: XCTestCase {
 
     func testFontImportPresentsNativeDocumentPicker() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitesting"]; app.launch()
-        XCTAssertTrue(app.tabBars.buttons["想法"].waitForExistence(timeout: 12)); app.tabBars.buttons["想法"].tap()
+        XCTAssertTrue(app.buttons["tab.ideas"].waitForExistence(timeout: 12)); app.buttons["tab.ideas"].tap()
         app.buttons["open.settings"].tap(); app.buttons["settings.appearance"].tap(); app.buttons["font.import"].tap()
         let cancel = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", "Cancel", "取消")).firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 10), "Font import must open a native file picker that accepts font data")
