@@ -195,4 +195,15 @@ final class DuetUITests: XCTestCase {
         XCTAssertTrue(cancel.waitForExistence(timeout: 10), "Font import must open a native file picker that accepts font data")
         attach(app, "Native Font Document Picker"); cancel.tap()
     }
+
+    func testConversationSearchFindsAndJumpsToMessage() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitesting", "--uitest-history"]; app.launch()
+        XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12)); app.buttons["thread.gpt"].tap(); app.buttons["chat.search"].tap()
+        let input = app.textFields["search.input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 6)); input.tap(); input.typeText("Earlier message 12")
+        let result = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Earlier message 12")).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 6)); attach(app, "Native Conversation Search"); result.tap()
+        let message = app.staticTexts["Earlier message 12"].firstMatch
+        expectation(for: NSPredicate { _, _ in message.exists && message.isHittable }, evaluatedWith: nil); waitForExpectations(timeout: 8)
+    }
 }

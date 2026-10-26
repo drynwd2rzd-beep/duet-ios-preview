@@ -29,11 +29,6 @@ struct NativeChat: View {
     @State private var memoryMessage: ChatMessage? = nil
     @State private var editing: UUID? = nil
     @State private var showSearch = false
-    @State private var query = ""
-    @State private var searchKind = "全部"
-    @State private var filterDate = false
-    @State private var selectedDate = Date()
-    @State private var searchIndex = 0
     @State private var nearBottom = true
     @State private var followingLatest = true
     @State private var userScrolling = false
@@ -43,17 +38,6 @@ struct NativeChat: View {
     private var chatScheme: ColorScheme { store.chatColorScheme(thread, fallback: scheme) }
     private var p: Palette { Palette(store.data.preferences, chatScheme) }
     private var messages: [ChatMessage] { store.data.messages[thread] ?? [] }
-    private var filtering: Bool { showSearch && (!query.isEmpty || searchKind != "全部" || filterDate) }
-    private var visibleMessages: [ChatMessage] {
-        guard filtering else { return messages }
-        return messages.filter { message in
-            if searchKind == "照片" && !message.attachments.contains(where: \.photo) { return false }
-            if searchKind == "文件" && !message.attachments.contains(where: { !$0.photo }) { return false }
-            if searchKind == "文字" && message.text.isEmpty { return false }
-            if filterDate && !Calendar.current.isDate(message.date, inSameDayAs: selectedDate) { return false }
-            return query.isEmpty || (message.text + " " + message.attachments.map(\.name).joined(separator: " ")).localizedCaseInsensitiveContains(query)
-        }
-    }
     private var mentionQuery: String? {
         guard thread == "group", let range = text.range(of: "@", options: .backwards) else { return nil }
         let suffix = String(text[range.upperBound...]); return suffix.contains(where: \.isWhitespace) || suffix.count > 24 ? nil : suffix
@@ -65,10 +49,11 @@ struct NativeChat: View {
             NativeBackdrop(thread: thread).ignoresSafeArea()
             chatScroll
                 .overlay(alignment: .top) { ChatHeaderFade(thread: thread) }
-                .safeAreaInset(edge: .top, spacing: 0) { VStack(spacing: 0) { Text(store.name(thread)).font(store.font(12, weight: .medium)).lineLimit(1).frame(maxWidth: .infinity).padding(.top, 2).padding(.bottom, 8); if showSearch { searchControls } } }
+                .safeAreaInset(edge: .top, spacing: 0) { VStack(spacing: 0) { Text(store.name(thread)).font(store.font(12, weight: .medium)).lineLimit(1).frame(maxWidth: .infinity).padding(.top, 2).padding(.bottom, 8) } }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer }
         }
         .environment(\.colorScheme, chatScheme)
+        .tint(p.accent)
         .foregroundStyle(p.foreground)
         .toolbarColorScheme(chatScheme, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
@@ -80,7 +65,7 @@ struct NativeChat: View {
             ToolbarItem(placement: .topBarLeading) { Button { dismiss() } label: { Image(systemName: "chevron.left").font(.system(size: 20, weight: .regular)).frame(width: 32, height: 44).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel("返回") }.matteToolbar()
             ToolbarItem(placement: .principal) { Button { inputFocused = false; infoPresented = true } label: { Avatar(id: thread, size: 42).contentShape(Circle()) }.buttonStyle(.plain).accessibilityLabel("会话选项，" + store.name(thread)).accessibilityIdentifier("chat.options") }.matteToolbar()
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { withAnimation { showSearch.toggle() }; if !showSearch { query = ""; searchKind = "全部"; filterDate = false } } label: { Image(systemName: "magnifyingglass") }.accessibilityLabel("搜索聊天").accessibilityIdentifier("chat.search")
+                Button { inputFocused = false; showSearch = true } label: { Image(systemName: "magnifyingglass") }.accessibilityLabel("搜索聊天").accessibilityIdentifier("chat.search")
             }.matteToolbar()
         }
         .onAppear { text = store.data.drafts[thread] ?? ""; attachments = store.data.draftAttachments?[thread] ?? []; store.activeThread = thread }
@@ -90,6 +75,7 @@ struct NativeChat: View {
         .photosPicker(isPresented: $photosPresented, selection: $photoSelection, maxSelectionCount: max(1, 6 - attachments.count), matching: .images)
         .onChange(of: photoSelection) { _, items in guard !items.isEmpty else { return }; photoImportTask?.cancel(); importingPhotos = true; photoImportTask = Task { defer { if !Task.isCancelled { photoSelection = []; importingPhotos = false } }; for item in items { guard !Task.isCancelled else { return }; do { if let data = try await item.loadTransferable(type: Data.self), !Task.isCancelled, attachments.count < 6 { attachments.append(try store.savePhoto(data)) } } catch { if !Task.isCancelled { store.notice(error.localizedDescription) } } } } }
         .fileImporter(isPresented: $filesPresented, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in do { for url in try result.get().prefix(max(0, 8 - attachments.count)) { attachments.append(try store.saveFile(url)) } } catch { store.notice(error.localizedDescription) } }
+        .sheet(isPresented: $showSearch) { ConversationSearch(thread: thread).environmentObject(store).environment(\.colorScheme, chatScheme) }
         .sheet(isPresented: $infoPresented) { ConversationInfo(thread: thread).environmentObject(store) }
         .sheet(item: $idea) { IdeaEditor(idea: $0).environmentObject(store) }
         .sheet(item: $document) { FilePreview(url: $0.url).ignoresSafeArea() }
@@ -101,11 +87,11 @@ struct NativeChat: View {
     }
 
     private var chatScroll: some View {
-        let snapshot = visibleMessages
+        let snapshot = messages
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    if snapshot.isEmpty { QuietEmpty(icon: filtering ? "magnifyingglass" : "bubble.left", title: filtering ? "没有找到相关消息" : "从一句话开始", detail: filtering ? "换个关键词，或清除筛选。" : "和伙伴聊聊此刻的想法。") }
+                    if snapshot.isEmpty { QuietEmpty(icon: "bubble.left", title: "从一句话开始", detail: "和伙伴聊聊此刻的想法。") }
                     else {
                         ForEach(Array(snapshot.enumerated()), id: \.element.id) { index, message in
                             if index == 0 || !Calendar.current.isDate(message.date, inSameDayAs: snapshot[index - 1].date) { Text(message.date.formatted(.dateTime.month().day())).font(store.font(11)).foregroundStyle(p.secondary).padding(.vertical, 8) }
@@ -122,28 +108,13 @@ struct NativeChat: View {
             .onChange(of: messages.count) { _, _ in if messages.last?.author == "me" { followingLatest = true }; scrollLatest(proxy) }
             .onChange(of: messages.last?.text) { _, _ in scrollLatest(proxy) }
             .onChange(of: inputFocused) { _, _ in scrollLatest(proxy) }
-            .onChange(of: searchIndex) { _, value in if !visibleMessages.isEmpty { proxy.scrollTo(visibleMessages[min(value, visibleMessages.count - 1)].id, anchor: .center) } }
             .onChange(of: store.requestedMessage) { _, id in if let id, messages.contains(where: { $0.id == id }) { followingLatest = false; proxy.scrollTo(id, anchor: .center); store.requestedMessage = nil } }
             .task(id: thread) { await Task.yield(); if let id = store.requestedMessage, messages.contains(where: { $0.id == id }) { followingLatest = false; proxy.scrollTo(id, anchor: .center); store.requestedMessage = nil } else { followingLatest = true; proxy.scrollTo("chat.bottom", anchor: .bottom) } }
         }
     }
     private func scrollLatest(_ proxy: ScrollViewProxy) {
-        guard followingLatest, !userScrolling, !filtering else { return }
-        Task { @MainActor in await Task.yield(); guard followingLatest, !userScrolling, !filtering else { return }; proxy.scrollTo("chat.bottom", anchor: .bottom) }
-    }
-    private var searchControls: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) { Image(systemName: "magnifyingglass").foregroundStyle(p.secondary); TextField("搜索聊天记录", text: $query).font(store.font(16)).accessibilityIdentifier("chat.search.input"); if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("清除搜索") } }.padding(11).background(p.surface, in: RoundedRectangle(cornerRadius: LayoutMetrics.field))
-            HStack(spacing: 9) {
-                Picker("类型", selection: $searchKind) { ForEach(["全部", "文字", "照片", "文件"], id: \.self) { Text($0).tag($0) } }.labelsHidden().font(store.font(11))
-                Button { filterDate.toggle() } label: { Image(systemName: "calendar").foregroundStyle(filterDate ? p.accent : p.secondary) }.accessibilityLabel("按日期筛选")
-                if filterDate { DatePicker("日期", selection: $selectedDate, displayedComponents: .date).labelsHidden().datePickerStyle(.compact).font(store.font(11)) }
-                Spacer(minLength: 0)
-                Text(filtering ? "\(visibleMessages.count) 条" : "").font(store.font(11)).foregroundStyle(p.secondary)
-                Button { searchIndex = max(0, searchIndex - 1) } label: { Image(systemName: "chevron.up") }.disabled(visibleMessages.isEmpty).accessibilityLabel("上一个结果")
-                Button { searchIndex = min(max(0, visibleMessages.count - 1), searchIndex + 1) } label: { Image(systemName: "chevron.down") }.disabled(visibleMessages.isEmpty).accessibilityLabel("下一个结果")
-            }.font(.system(size: 12))
-        }.padding(.horizontal, LayoutMetrics.page).padding(.vertical, 10).background(p.background)
+        guard followingLatest, !userScrolling else { return }
+        Task { @MainActor in await Task.yield(); guard followingLatest, !userScrolling else { return }; proxy.scrollTo("chat.bottom", anchor: .bottom) }
     }
     private var composer: some View {
         VStack(spacing: 9) {
