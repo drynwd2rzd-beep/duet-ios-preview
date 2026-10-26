@@ -8,6 +8,7 @@ final class DuetUITests: XCTestCase {
         app.launch()
         let group = app.buttons["thread.group"]
         XCTAssertTrue(group.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "The matte home dock must not overlap a system glass tab bar")
         XCTAssertEqual(app.webViews.count, 0, "The main UI must be native")
         let before = group.frame
         let header = app.descendants(matching: .any)["home.header"].firstMatch
@@ -37,6 +38,7 @@ final class DuetUITests: XCTestCase {
         let ideas = app.buttons["tab.ideas"]
         XCTAssertTrue(ideas.waitForExistence(timeout: 12))
         ideas.tap()
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "Ideas must use only the matte home dock")
         attach(app, "Native Ideas")
         app.buttons["open.settings"].tap()
         let appearance = app.buttons["settings.appearance"]

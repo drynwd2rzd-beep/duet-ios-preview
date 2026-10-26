@@ -18,14 +18,14 @@ struct NativeRoot: View {
     @State private var chatPath: [String] = []
     private var p: Palette { Palette(store.data.preferences, scheme) }
     var body: some View {
-        TabView(selection: $tab) {
+        ZStack {
             NavigationStack(path: $chatPath) {
                 ChatsHome()
                 .navigationDestination(for: String.self) { id in NativeChat(thread: id) }
                 .toolbar(.hidden, for: .navigationBar)
-            }.tabItem { Label("聊天", systemImage: "bubble.left").labelStyle(.iconOnly) }.tag("chats")
+            }.opacity(tab == "chats" ? 1 : 0).allowsHitTesting(tab == "chats").accessibilityHidden(tab != "chats")
             NavigationStack { IdeasHome().toolbar(.hidden, for: .navigationBar) }
-                .tabItem { Label("想法", systemImage: "lightbulb").labelStyle(.iconOnly) }.tag("ideas")
+                .opacity(tab == "ideas" ? 1 : 0).allowsHitTesting(tab == "ideas").accessibilityHidden(tab != "ideas")
         }
         .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) { if tab != "chats" || chatPath.isEmpty { matteTabs } }
