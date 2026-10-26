@@ -48,6 +48,7 @@ struct NativeSettings: View {
                 .navigationDestination(for: SettingsRoute.self) { settingsDestination($0) }
         }.tint(p.accent).presentationDetents([.large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)
             .onAppear { if store.relay.pendingPairing != nil { settingsPath = [.accounts] } }
+            .onChange(of: store.relay.pendingPairing?.url) { _, value in if value != nil { settingsPath = [.accounts] } }
     }
     private func row(_ route: SettingsRoute, icon: String, title: String, detail: String = "", id: String) -> some View {
         NavigationLink(value: route) {

@@ -105,7 +105,10 @@ final class DuetUITests: XCTestCase {
         XCTAssertTrue(app.buttons["chat.model.gpt"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["chat.background"].exists)
         attach(app, "Native Avatar Options")
-        app.buttons["chat.clear-history"].tap()
+        let clear = app.buttons["chat.clear-history"]
+        for _ in 0..<3 where !clear.exists || !clear.isHittable { app.buttons["chat.background"].swipeUp() }
+        XCTAssertTrue(clear.waitForExistence(timeout: 4))
+        clear.tap()
         app.buttons["清空记录"].tap()
         XCTAssertTrue(app.staticTexts["从一句话开始"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.staticTexts["Latest test reply"].exists)

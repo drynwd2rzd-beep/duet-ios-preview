@@ -11,6 +11,7 @@ struct RelayPairing { var url: String; var token: String }
 final class NativeRelay: ObservableObject {
     @Published var state = "未连接" { didSet { store?.objectWillChange.send() } }
     @Published var connected = false
+    @Published var lastFailure: String? = nil
     @Published var agents: [String: Bool] = [:]
     @Published var agentKinds: [String: String] = [:]
     @Published var modelNames: [String: String] = [:]
@@ -102,11 +103,15 @@ final class NativeRelay: ObservableObject {
                     guard data.count <= 24 * 1024 * 1024, let event = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
                     self.receive(event)
                 }
-            } catch { guard let self, self.generation == ticket else { return }; self.connectionLost() }
+            } catch { guard let self, self.generation == ticket else { return }; self.connectionLost(error) }
         }
     }
     func disconnect() { wanted = false; generation = UUID(); reconnect?.cancel(); receiver?.cancel(); task?.cancel(with: .goingAway, reason: nil); task = nil; connected = false; agents = [:]; agentKinds = [:]; modelNames = [:]; state = "未连接" }
-    private func connectionLost() {
+    private func connectionLost(_ error: Error? = nil) {
+        if let response = task?.response as? HTTPURLResponse, response.statusCode >= 400 {
+            lastFailure = response.statusCode == 401 ? "配对码未通过验证，请重新扫码并保存连接。" : "服务器拒绝连接（HTTP \(response.statusCode)）。"
+        } else if let error { lastFailure = "\(error.localizedDescription)（\((error as NSError).code)）" }
+        pendingAssets.removeAll()
         receiver?.cancel(); task?.cancel(with: .goingAway, reason: nil); task = nil; connected = false; agents = [:]; modelNames = [:]; state = "连接已断开，等待重连"
         guard wanted else { return }
         let seconds = retryDelay; retryDelay = min(30, retryDelay * 2)
@@ -116,7 +121,7 @@ final class NativeRelay: ObservableObject {
     private func send(_ raw: Data) {
         guard connected, let task, let text = String(data: raw, encoding: .utf8) else { return }
         let ticket = generation
-        Task { [weak self] in do { try await task.send(.string(text)) } catch { if self?.generation == ticket { self?.connectionLost() } } }
+        Task { [weak self] in do { try await task.send(.string(text)) } catch { if self?.generation == ticket { self?.connectionLost(error) } } }
     }
     private func saveOutbox() throws { guard let store else { return }; try JSONEncoder().encode(outbox).write(to: store.directory.appendingPathComponent("bridge-outbox.json"), options: .atomic) }
     private func saveClearIntents() throws { guard let store else { return }; try JSONEncoder().encode(clearIntents).write(to: store.directory.appendingPathComponent("bridge-clear-outbox.json"), options: .atomic) }
@@ -194,7 +199,7 @@ final class NativeRelay: ObservableObject {
             capabilities = event["capabilities"] as? [String: Any] ?? [:]
             let values = event["agents"] as? [String: [String: Any]] ?? [:]
             agentKinds = values.compactMapValues { $0["kind"] as? String }
-            connected = true; state = "已连接电脑"; retryDelay = 1
+            connected = true; state = "已连接电脑"; lastFailure = nil; retryDelay = 1
             send(["type": "status"])
             if capabilities["historyClear"] as? Bool == true { for (id, channels) in clearIntents { send(["type": "history.clear", "id": id, "channels": channels]) } }
             for raw in outbox.values { send(raw) }
@@ -300,6 +305,7 @@ struct NativeBridgeSettings: View {
         let p = Palette(store.data.preferences, scheme)
         ScrollView { VStack(alignment: .leading, spacing: 18) {
             HStack { Image(systemName: relay.connected ? "checkmark.circle" : "link").foregroundStyle(p.accent); Text(relay.state).font(store.font(14)); Spacer() }.padding(16).background(p.surface, in: RoundedRectangle(cornerRadius: LayoutMetrics.card))
+            if let failure = relay.lastFailure { Text(failure).font(store.font(12)).foregroundStyle(p.secondary).textSelection(.enabled) }
             LabeledContent("GPT 连接", value: relay.connectionLabel).font(store.font(12)).foregroundStyle(p.secondary)
             HStack(spacing: 12) { ForEach(["gpt", "claude"], id: \.self) { id in VStack(spacing: 10) { Avatar(id: id, size: 44); Text(store.name(id)).font(store.font(13, weight: .medium)); Text(relay.agents[id] == true ? "已连接" : "未连接").font(store.font(11)).foregroundStyle(p.secondary) }.frame(maxWidth: .infinity).padding(.vertical, 18).background(p.surface, in: RoundedRectangle(cornerRadius: LayoutMetrics.card)) } }
             Text("电脑消息桥地址").font(store.font(11)).foregroundStyle(p.secondary)
@@ -309,6 +315,6 @@ struct NativeBridgeSettings: View {
             PrimaryAction(title: "保存并连接") { do { try relay.configure(address: address, token: token) } catch { store.notice(error.localizedDescription) } }.accessibilityIdentifier("bridge.connect")
             if relay.connected { Button("断开连接") { relay.disconnect() }.font(store.font(13)).frame(maxWidth: .infinity) }
             Text("支持普通聊天与单独选择的 Codex 模型、每次最多 6 张照片。照片仍待本机实测；Claude 与普通文件的 AI 收发尚未接入。配对码保存在本机钥匙串。").font(store.font(11)).foregroundStyle(p.secondary).lineSpacing(4)
-        }.padding(20) }.background(p.background).foregroundStyle(p.foreground).sheetTitle("电脑连接").onAppear { address = relay.pendingPairing?.url ?? relay.address; token = relay.pendingPairing?.token ?? relay.token; relay.refreshStatus() }
+        }.padding(20) }.background(p.background).foregroundStyle(p.foreground).sheetTitle("电脑连接").onAppear { address = relay.pendingPairing?.url ?? relay.address; token = relay.pendingPairing?.token ?? relay.token; relay.refreshStatus() }.onChange(of: relay.pendingPairing?.url) { _, value in if let value, let pairing = relay.pendingPairing { address = value; token = pairing.token } }
     }
 }
