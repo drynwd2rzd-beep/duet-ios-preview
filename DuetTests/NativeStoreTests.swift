@@ -1,8 +1,22 @@
 import XCTest
 import UIKit
+import SwiftUI
 @testable import Duet
 
 final class NativeStoreTests: XCTestCase {
+    @MainActor func testChatPaletteAdaptsToWallpaperAndDimming() throws {
+        let store = try store()
+        XCTAssertEqual(store.chatColorScheme("gpt", fallback: .light), .light)
+        XCTAssertEqual(store.chatColorScheme("gpt", fallback: .dark), .dark)
+        for (color, expected) in [(UIColor.black, ColorScheme.dark), (UIColor.white, ColorScheme.light)] {
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { context in color.setFill(); context.fill(CGRect(x: 0, y: 0, width: 64, height: 64)) }
+            let photo = try store.savePhoto(try XCTUnwrap(image.pngData()))
+            store.replaceBackground(photo.path, thread: "gpt")
+            XCTAssertEqual(store.chatColorScheme("gpt", fallback: expected == .dark ? .light : .dark), expected)
+        }
+        var backdrop = store.backdrop("gpt"); backdrop.dim = 0.7; store.setBackdrop(backdrop, thread: "gpt")
+        XCTAssertEqual(store.chatColorScheme("gpt", fallback: .light), .dark)
+    }
     @MainActor private func store() throws -> NativeStore {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("DuetTests-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -113,6 +113,7 @@ final class NativeStore: ObservableObject {
     private var persistenceTask: Task<Void, Never>?
     private var toastTask: Task<Void, Never>?
     private let imageCache: NSCache<NSString, UIImage> = { let cache = NSCache<NSString, UIImage>(); cache.countLimit = 50; cache.totalCostLimit = 64 * 1024 * 1024; return cache }()
+    private let luminanceCache = NSCache<NSString, NSNumber>()
     let directory: URL
     let testMode: Bool
     lazy var relay = NativeRelay(store: self)
@@ -136,11 +137,12 @@ final class NativeStore: ObservableObject {
         if testMode && ProcessInfo.processInfo.arguments.contains("--uitest-history") {
             data.messages["gpt"] = (0..<65).map { ChatMessage(author: $0 % 2 == 0 ? "me" : "gpt", text: $0 == 64 ? "Latest test reply" : "Earlier message \($0)", status: "received") }
         }
-        if testMode && ProcessInfo.processInfo.arguments.contains("--uitest-wallpaper") {
+        if testMode && (ProcessInfo.processInfo.arguments.contains("--uitest-wallpaper") || ProcessInfo.processInfo.arguments.contains("--uitest-wallpaper-dark")) {
+            let dark = ProcessInfo.processInfo.arguments.contains("--uitest-wallpaper-dark")
             let image = UIGraphicsImageRenderer(size: CGSize(width: 390, height: 844)).image { context in
-                UIColor(red: 0.82, green: 0.73, blue: 0.66, alpha: 1).setFill(); context.fill(CGRect(x: 0, y: 0, width: 390, height: 844))
+                (dark ? UIColor(white: 0.08, alpha: 1) : UIColor(red: 0.82, green: 0.73, blue: 0.66, alpha: 1)).setFill(); context.fill(CGRect(x: 0, y: 0, width: 390, height: 844))
                 for index in 0..<20 {
-                    (index % 2 == 0 ? UIColor.darkGray : UIColor.white).setFill()
+                    (dark ? UIColor(white: index % 2 == 0 ? 0.16 : 0.24, alpha: 1) : (index % 2 == 0 ? UIColor.darkGray : UIColor.white)).setFill()
                     context.fill(CGRect(x: CGFloat(index * 22), y: 0, width: 9, height: 844))
                 }
             }
@@ -162,6 +164,25 @@ final class NativeStore: ObservableObject {
     func url(_ relative: String) -> URL { directory.appendingPathComponent(relative) }
     func image(_ path: String?) -> UIImage? { guard let path else { return nil }; if let cached = imageCache.object(forKey: path as NSString) { return cached }; guard let image = UIImage(contentsOfFile: url(path).path) else { return nil }; imageCache.setObject(image, forKey: path as NSString, cost: Int(image.size.width * image.size.height * image.scale * image.scale * 4)); return image }
     func backdrop(_ thread: String) -> BackdropOptions { data.backdropOptions?[thread] ?? BackdropOptions() }
+    func chatColorScheme(_ thread: String, fallback: ColorScheme) -> ColorScheme {
+        guard let path = data.backgrounds[thread], let image = image(path), let cgImage = image.cgImage else { return fallback }
+        let luminance: Double
+        if let cached = luminanceCache.object(forKey: path as NSString) { luminance = cached.doubleValue }
+        else {
+            var pixels = [UInt8](repeating: 0, count: 32 * 32 * 4)
+            let rendered = pixels.withUnsafeMutableBytes { bytes -> Bool in
+                guard let context = CGContext(data: bytes.baseAddress, width: 32, height: 32, bitsPerComponent: 8, bytesPerRow: 128, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue) else { return false }
+                context.setFillColor(UIColor.white.cgColor); context.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
+                context.interpolationQuality = .low; context.draw(cgImage, in: CGRect(x: 0, y: 0, width: 32, height: 32)); return true
+            }
+            guard rendered else { return fallback }
+            var total = 0.0
+            for offset in stride(from: 0, to: pixels.count, by: 4) { total += 0.2126 * Double(pixels[offset]) + 0.7152 * Double(pixels[offset + 1]) + 0.0722 * Double(pixels[offset + 2]) }
+            luminance = total / (255 * 32 * 32)
+            luminanceCache.setObject(NSNumber(value: luminance), forKey: path as NSString)
+        }
+        return luminance * (1 - max(0, min(0.7, backdrop(thread).dim))) < 0.5 ? .dark : .light
+    }
     func setBackdrop(_ options: BackdropOptions, thread: String) { if data.backdropOptions == nil { data.backdropOptions = [:] }; data.backdropOptions?[thread] = options }
     func replaceBackground(_ file: String?, thread: String) { let old = data.backgrounds[thread]; data.backgrounds[thread] = file; if let old, old != file { pruneFiles([old]) }; persist() }
 
@@ -309,7 +330,7 @@ final class NativeStore: ObservableObject {
     }
     private func pruneFiles(_ candidates: [String]) {
         let retained = Set(data.messages.values.flatMap { $0 }.flatMap(\.attachments).map(\.path) + (data.draftAttachments ?? [:]).values.flatMap { $0 }.map(\.path) + data.people.values.compactMap(\.avatar) + Array(data.backgrounds.values) + data.preferences.fonts.map(\.path))
-        for path in Set(candidates).subtracting(retained) where !path.contains("/") && !path.contains("\\") { imageCache.removeObject(forKey: path as NSString); try? FileManager.default.removeItem(at: url(path)) }
+        for path in Set(candidates).subtracting(retained) where !path.contains("/") && !path.contains("\\") { imageCache.removeObject(forKey: path as NSString); luminanceCache.removeObject(forKey: path as NSString); try? FileManager.default.removeItem(at: url(path)) }
     }
     func setDraftAttachments(_ files: [ChatAttachment], thread: String) { let old = data.draftAttachments?[thread] ?? []; if data.draftAttachments == nil { data.draftAttachments = [:] }; data.draftAttachments?[thread] = files; pruneFiles(old.map(\.path)); }
     func saveMemory(_ memory: Memory, provider: String) { guard !memory.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }; if let i = data.personas[provider]?.memories.firstIndex(where: { $0.id == memory.id }) { data.personas[provider]!.memories[i] = memory } else { data.personas[provider, default: Persona()].memories.insert(memory, at: 0) }; notice("已保存记忆", success: true) }

@@ -40,7 +40,8 @@ struct NativeChat: View {
     @State private var importingPhotos = false
     @State private var photoImportTask: Task<Void, Never>? = nil
     @FocusState private var inputFocused: Bool
-    private var p: Palette { Palette(store.data.preferences, scheme) }
+    private var chatScheme: ColorScheme { store.chatColorScheme(thread, fallback: scheme) }
+    private var p: Palette { Palette(store.data.preferences, chatScheme) }
     private var messages: [ChatMessage] { store.data.messages[thread] ?? [] }
     private var filtering: Bool { showSearch && (!query.isEmpty || searchKind != "全部" || filterDate) }
     private var visibleMessages: [ChatMessage] {
@@ -67,7 +68,9 @@ struct NativeChat: View {
                 .safeAreaInset(edge: .top, spacing: 0) { VStack(spacing: 0) { Text(store.name(thread)).font(store.font(12, weight: .medium)).lineLimit(1).frame(maxWidth: .infinity).padding(.top, 2).padding(.bottom, 8); if showSearch { searchControls } } }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer }
         }
+        .environment(\.colorScheme, chatScheme)
         .foregroundStyle(p.foreground)
+        .toolbarColorScheme(chatScheme, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)

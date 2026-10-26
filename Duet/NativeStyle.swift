@@ -8,12 +8,12 @@ private struct ChatViewport: Equatable {
 }
 
 enum LayoutMetrics {
-    static let page: CGFloat = 20
-    static let section: CGFloat = 16
+    static let page: CGFloat = 22
+    static let section: CGFloat = 20
     static let rowGap: CGFloat = 12
-    static let card: CGFloat = 22
-    static let field: CGFloat = 16
-    static let sheet: CGFloat = 28
+    static let card: CGFloat = 18
+    static let field: CGFloat = 14
+    static let sheet: CGFloat = 24
 }
 
 struct TypingIndicator: View {
@@ -40,14 +40,14 @@ struct Palette {
     let dark: Bool
     init(_ settings: Preferences, _ scheme: ColorScheme) {
         dark = scheme == .dark
-        let backgrounds = ["porcelain": ["FCFAFB", "1D181E"], "blush": ["FAF1F5", "261B23"], "cream": ["FAF5EE", "252019"], "mist": ["F1F5FA", "19212A"]]
+        let backgrounds = ["porcelain": ["FAF9F7", "19191D"], "blush": ["FAF1F5", "261B23"], "cream": ["FAF5EE", "252019"], "mist": ["F1F5FA", "19212A"]]
         background = Color(uiColor: UIColor(hex: (backgrounds[settings.background] ?? backgrounds["porcelain"]!)[dark ? 1 : 0]))
         foreground = Color(uiColor: UIColor(hex: dark ? "ECECEF" : "29272C"))
-        secondary = Color(uiColor: UIColor(hex: dark ? "ADADB7" : "85838D"))
+        secondary = Color(uiColor: UIColor(hex: dark ? "B2B2BA" : "74747B"))
         surface = foreground.opacity(dark ? 0.075 : 0.035)
-        let themes = ["rose": ["9A647C", "C8A3B3"], "blue": ["5B708D", "A4BCD6"], "sage": ["5D7A6E", "A7C9B6"], "apricot": ["8E6D4B", "D6BB95"]]
+        let themes = ["rose": ["876D7C", "C4B2BC"], "blue": ["5B708D", "A4BCD6"], "sage": ["5D7A6E", "A7C9B6"], "apricot": ["8E6D4B", "D6BB95"]]
         accent = Color(uiColor: UIColor(hex: settings.theme == "custom" ? settings.customHex : (themes[settings.theme] ?? themes["rose"]!)[dark ? 1 : 0]))
-        mine = accent.opacity(dark ? 0.2 : 0.1)
+        mine = accent.opacity(dark ? 0.12 : 0.07)
     }
 }
 extension View {

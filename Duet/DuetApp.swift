@@ -40,13 +40,11 @@ struct NativeRoot: View {
         .onChange(of: scenePhase) { _, phase in if !store.testMode { store.relay.sceneChanged(phase); if phase == .active { store.reconcileReminders() } else if phase == .background { store.persist() } } }
     }
     private var matteTabs: some View {
-        HStack(spacing: 34) {
+        HStack(spacing: 64) {
             tabButton("chats", label: "聊天", icon: "bubble.left")
             tabButton("ideas", label: "想法", icon: "lightbulb")
-        }.padding(.horizontal, 22).padding(.vertical, 4)
-            .background(p.background, in: Capsule())
-            .overlay(Capsule().stroke(p.foreground.opacity(0.055), lineWidth: 0.5))
-            .padding(.top, 8).padding(.bottom, 7)
+        }.padding(.horizontal, 24).padding(.vertical, 6).frame(maxWidth: .infinity)
+            .background(p.background)
     }
     private func tabButton(_ value: String, label: String, icon: String) -> some View {
         Button { tab = value } label: {
@@ -72,7 +70,7 @@ struct ChatsHome: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Chats").font(store.font(24, weight: .medium)).foregroundStyle(p.foreground)
+            Text("Chats").font(store.font(23, weight: .medium)).tracking(-0.5).foregroundStyle(p.foreground)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, LayoutMetrics.page).padding(.top, 18).padding(.bottom, 18)
                 .accessibilityIdentifier("home.header")
@@ -81,16 +79,16 @@ struct ChatsHome: View {
                     ForEach(ordered, id: \.self) { id in
                         Button { store.requestedThread = id } label: { threadRow(id).contentShape(Rectangle()) }
                             .buttonStyle(.plain).accessibilityIdentifier("thread." + id)
-                            .listRowInsets(EdgeInsets(top: 11, leading: 12, bottom: 11, trailing: 12))
+                            .listRowInsets(EdgeInsets(top: 12, leading: LayoutMetrics.page, bottom: 12, trailing: LayoutMetrics.page))
                             .listRowSeparator(id == ordered.last ? .hidden : .visible)
                             .listRowSeparatorTint(p.foreground.opacity(0.065))
-                            .listRowBackground(p.dark ? p.surface : Color.white.opacity(0.78))
+                            .listRowBackground(p.background)
                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                 Button { changePin(id) } label: { Label(store.data.pinned.contains(id) ? "取消置顶" : "置顶", systemImage: store.data.pinned.contains(id) ? "pin.slash" : "pin") }.tint(p.accent).disabled(pendingPin != nil)
                             }
                     }
                 }
-            }.listStyle(.insetGrouped).listSectionSpacing(LayoutMetrics.section)
+            }.listStyle(.plain).listSectionSeparator(.hidden)
                 .scrollContentBackground(.hidden).contentMargins(.top, 0)
         }.background(p.background).foregroundStyle(p.foreground)
     }
@@ -105,7 +103,7 @@ struct ChatsHome: View {
     }
     private func threadRow(_ id: String) -> some View {
         HStack(spacing: 11) {
-            Avatar(id: id, size: id == "group" ? 44 : 40)
+            Avatar(id: id, size: 42)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 5) {
                     Text(store.name(id)).font(store.font(15, weight: .medium)).lineLimit(1)
@@ -138,7 +136,7 @@ struct IdeasHome: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Text("Ideas").font(store.font(24, weight: .medium)).foregroundStyle(p.foreground)
+                Text("Ideas").font(store.font(23, weight: .medium)).tracking(-0.5).foregroundStyle(p.foreground)
                 Spacer()
                 Button { store.settingsPresented = true } label: { Image(systemName: "gearshape").font(.system(size: 16)).frame(width: 36, height: 36).matteCircle() }.accessibilityLabel("设置").accessibilityIdentifier("open.settings")
                 Button { editing = Idea(later: filter == 1) } label: { Image(systemName: "plus").font(.system(size: 18)).frame(width: 36, height: 36).matteCircle() }.accessibilityLabel("记录想法").accessibilityIdentifier("idea.add")
@@ -156,9 +154,9 @@ struct IdeasHome: View {
                     Section {
                         ForEach(items) { idea in
                             ideaRow(idea)
-                                .listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
+                                .listRowInsets(EdgeInsets(top: 12, leading: LayoutMetrics.page, bottom: 12, trailing: LayoutMetrics.page))
                                 .listRowSeparatorTint(p.foreground.opacity(0.065))
-                                .listRowBackground(p.dark ? p.surface : Color.white.opacity(0.78))
+                                .listRowBackground(p.background)
                                 .swipeActions(edge: .leading) { Button { toggle(idea) } label: { Label(idea.done ? "恢复" : "完成", systemImage: "checkmark") }.tint(p.accent) }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button(role: .destructive) { store.deleteIdea(idea.id) } label: { Label("删除", systemImage: "trash") }
@@ -166,7 +164,7 @@ struct IdeasHome: View {
                                 }
                         }
                     }
-                }.listStyle(.insetGrouped).scrollContentBackground(.hidden).contentMargins(.top, 0)
+                }.listStyle(.plain).listSectionSeparator(.hidden).scrollContentBackground(.hidden).contentMargins(.top, 0)
             }
         }.background(p.background).foregroundStyle(p.foreground)
             .sheet(item: $editing) { IdeaEditor(idea: $0).environmentObject(store) }

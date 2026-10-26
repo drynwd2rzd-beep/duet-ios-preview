@@ -176,12 +176,15 @@ final class DuetUITests: XCTestCase {
 
     func testWallpaperContinuesBehindHeaderAndComposer() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitesting", "--uitest-history", "--uitest-wallpaper"]
-        app.launch()
-        XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12)); app.buttons["thread.gpt"].tap()
-        XCTAssertTrue(app.buttons["chat.options"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.tabBars.firstMatch.exists)
-        attach(app, "Continuous Wallpaper Header And Composer")
+        for dark in [false, true] {
+            app.launchArguments = ["--uitesting", "--uitest-history", dark ? "--uitest-wallpaper-dark" : "--uitest-wallpaper"]
+            app.launch()
+            XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12)); app.buttons["thread.gpt"].tap()
+            XCTAssertTrue(app.buttons["chat.options"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.tabBars.firstMatch.exists)
+            attach(app, dark ? "Dark Wallpaper Adaptive Palette" : "Continuous Wallpaper Header And Composer")
+            app.terminate()
+        }
     }
 
     func testFontImportPresentsNativeDocumentPicker() throws {
