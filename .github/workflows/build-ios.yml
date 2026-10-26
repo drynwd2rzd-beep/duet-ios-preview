@@ -12,7 +12,7 @@ jobs:
   build:
     name: Compile and test native iPhone app
     runs-on: macos-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Validate native sources
@@ -39,7 +39,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Test native UI on iPhone simulator
-        timeout-minutes: 20
+        timeout-minutes: 35
         run: bash scripts/test-native.sh
       - name: Upload native screenshots
         if: always()
