@@ -136,6 +136,16 @@ final class NativeStore: ObservableObject {
         if testMode && ProcessInfo.processInfo.arguments.contains("--uitest-history") {
             data.messages["gpt"] = (0..<65).map { ChatMessage(author: $0 % 2 == 0 ? "me" : "gpt", text: $0 == 64 ? "Latest test reply" : "Earlier message \($0)", status: "received") }
         }
+        if testMode && ProcessInfo.processInfo.arguments.contains("--uitest-wallpaper") {
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 390, height: 844)).image { context in
+                UIColor(red: 0.82, green: 0.73, blue: 0.66, alpha: 1).setFill(); context.fill(CGRect(x: 0, y: 0, width: 390, height: 844))
+                for index in 0..<20 {
+                    (index % 2 == 0 ? UIColor.darkGray : UIColor.white).setFill()
+                    context.fill(CGRect(x: CGFloat(index * 22), y: 0, width: 9, height: 844))
+                }
+            }
+            if let bytes = image.pngData() { try? bytes.write(to: directory.appendingPathComponent("uitest-wallpaper.png")); data.backgrounds["gpt"] = "uitest-wallpaper.png" }
+        }
         #endif
         notifications.install(store: self)
         NativeBackground.shared.onExpiration = { [weak self] in self?.relay.backgroundExpired() }
@@ -249,6 +259,7 @@ final class NativeStore: ObservableObject {
             if let index = data.messages[thread]?.indices.last { data.messages[thread]![index].status = "delivered" }
             let reply = ChatMessage(author: "gpt", text: "", status: "replying")
             data.messages[thread, default: []].append(reply)
+            if ProcessInfo.processInfo.arguments.contains("--uitest-hold-replies") { return }
             Task { @MainActor in
                 for line in 0..<18 {
                     try? await Task.sleep(nanoseconds: 120_000_000)
@@ -267,7 +278,12 @@ final class NativeStore: ObservableObject {
     func reconcileReminders() { Task { await notifications.syncReminders(data.ideas) } }
     func toggleIdea(_ id: UUID) { if let i = data.ideas.firstIndex(where: { $0.id == id }) { data.ideas[i].task = true; data.ideas[i].done.toggle(); reconcileReminders(); UISelectionFeedbackGenerator().selectionChanged() } }
     func retry(_ thread: String, id: UUID) { guard let i = data.messages[thread]?.firstIndex(where: { $0.id == id }) else { return }; if let job = data.messages[thread]![i].bridgeJob { relay.retryJob(job) } else { data.messages[thread]![i].status = "sending"; data.messages[thread]![i].bridgeError = nil; relay.enqueue(data.messages[thread]![i], thread: thread) } }
-    func isReplying(_ thread: String) -> Bool { relay.isReplying(thread) }
+    func isReplying(_ thread: String) -> Bool {
+        #if DEBUG
+        if testMode && ProcessInfo.processInfo.arguments.contains("--uitest-replies") { return data.messages[thread]?.contains(where: { $0.status == "replying" }) == true }
+        #endif
+        return relay.isReplying(thread)
+    }
     func stopReplies(_ thread: String) { relay.stop(thread) }
     func saveIdea(_ idea: Idea) {
         var item = idea; item.text = item.text.trimmingCharacters(in: .whitespacesAndNewlines); guard !item.text.isEmpty else { return }

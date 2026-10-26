@@ -62,8 +62,10 @@ struct NativeChat: View {
         ZStack {
             NativeBackdrop(thread: thread).ignoresSafeArea()
             chatScroll
+                .overlay(alignment: .top) { ChatHeaderFade(thread: thread) }
+                .safeAreaInset(edge: .top, spacing: 0) { VStack(spacing: 0) { Text(store.name(thread)).font(store.font(12, weight: .medium)).lineLimit(1).frame(maxWidth: .infinity).padding(.top, 2).padding(.bottom, 8); if showSearch { searchControls } } }
+                .safeAreaInset(edge: .bottom, spacing: 0) { composer }
         }
-        .overlay(alignment: .top) { ChatHeaderFade(thread: thread) }
         .foregroundStyle(p.foreground)
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
@@ -75,8 +77,6 @@ struct NativeChat: View {
                 Button { withAnimation { showSearch.toggle() }; if !showSearch { query = ""; searchKind = "全部"; filterDate = false } } label: { Image(systemName: "magnifyingglass") }.accessibilityLabel("搜索聊天").accessibilityIdentifier("chat.search")
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) { VStack(spacing: 0) { Text(store.name(thread)).font(store.font(12, weight: .medium)).lineLimit(1).frame(maxWidth: .infinity).padding(.top, 2).padding(.bottom, 8); if showSearch { searchControls } } }
-        .safeAreaInset(edge: .bottom, spacing: 0) { composer }
         .onAppear { text = store.data.drafts[thread] ?? ""; attachments = store.data.draftAttachments?[thread] ?? []; store.activeThread = thread }
         .onDisappear { photoImportTask?.cancel(); importingPhotos = false; store.data.drafts[thread] = text; store.setDraftAttachments(attachments, thread: thread); if store.activeThread == thread { store.activeThread = nil }; store.persist() }
         .onChange(of: text) { _, value in store.data.drafts[thread] = value }
@@ -155,12 +155,14 @@ struct NativeChat: View {
                 HStack(alignment: .bottom, spacing: 8) {
                     TextField("发消息", text: $text, axis: .vertical).font(store.font(16)).lineLimit(1...5).padding(.vertical, 8).focused($inputFocused).accessibilityIdentifier("message.input")
                     if thread == "group" { Button { if !text.isEmpty && !text.hasSuffix(" ") { text += " " }; text += "@"; inputFocused = true } label: { Image(systemName: "at").font(.system(size: 18)).foregroundStyle(p.secondary).frame(width: 26, height: 36) }.accessibilityLabel("提及伙伴") }
-                    Button { if store.isReplying(thread) { store.stopReplies(thread) } else { send() } } label: { Image(systemName: store.isReplying(thread) ? "stop.fill" : "arrow.up").font(.system(size: 18, weight: .medium)).foregroundStyle(p.background).frame(width: 36, height: 36).background(p.accent.opacity(canSend ? 1 : 0.35), in: Circle()) }.disabled(!canSend).accessibilityLabel(store.isReplying(thread) ? "停止回复" : "发送消息").accessibilityIdentifier("message.send")
+                    Button { if stopsReply { store.stopReplies(thread) } else { send() } } label: { Image(systemName: stopsReply ? "stop.fill" : "arrow.up").font(.system(size: 18, weight: .medium)).foregroundStyle(p.background).frame(width: 36, height: 36).background(p.accent.opacity(canSend ? 1 : 0.35), in: Circle()) }.disabled(!canSend).accessibilityLabel(stopsReply ? "停止回复" : "发送消息").accessibilityIdentifier("message.send")
                 }.padding(5).padding(.leading, 10).nativePanel(radius: 26)
             }.padding(.horizontal, LayoutMetrics.page)
-        }.padding(.top, 10).padding(.bottom, 9).background { LinearGradient(colors: [p.background.opacity(0), p.background.opacity(0.82)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false) }
+        }.padding(.top, 10).padding(.bottom, 9)
     }
-    private var canSend: Bool { !store.relay.isClearing(thread) && (store.isReplying(thread) || !importingPhotos && (!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty)) }
+    private var hasDraft: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty }
+    private var stopsReply: Bool { store.isReplying(thread) && !hasDraft }
+    private var canSend: Bool { !store.relay.isClearing(thread) && !importingPhotos && (hasDraft || stopsReply) }
     private func send() { userScrolling = false; followingLatest = true; store.send(thread: thread, text: text, attachments: attachments, editing: editing); text = ""; attachments = []; editing = nil }
     private func chooseMention(_ id: String) { if let range = text.range(of: "@", options: .backwards) { text.replaceSubrange(range.lowerBound..., with: "@" + (id == "all" ? "所有人" : store.name(id)) + " ") }; inputFocused = true }
     private func saveMemory(_ message: ChatMessage, provider: String) { memory = MemoryRequest(provider: provider, memory: Memory(text: String(message.text.prefix(160)), thread: thread, message: message.id, date: message.date)) }

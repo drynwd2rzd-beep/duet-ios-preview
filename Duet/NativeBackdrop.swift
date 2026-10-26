@@ -31,10 +31,22 @@ struct ChatHeaderFade: View {
     var body: some View {
         let p = Palette(store.data.preferences, scheme)
         let strength = store.backdrop(thread).headerFade
-        let mask = LinearGradient(stops: [.init(color: .white, location: 0), .init(color: .white.opacity(0.95), location: 0.35), .init(color: .white.opacity(0.4), location: 0.72), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom)
-        ZStack {
-            Rectangle().fill(.ultraThinMaterial).mask(mask).opacity(strength)
-            LinearGradient(stops: [.init(color: p.background.opacity(strength * 0.95), location: 0), .init(color: p.background.opacity(strength * 0.55), location: 0.45), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom)
-        }.frame(height: 165).ignoresSafeArea(edges: .top).allowsHitTesting(false).accessibilityHidden(true)
+        GeometryReader { geometry in
+            // Expand first, then mask the entire material surface. Masking a
+            // fixed-height view before ignoresSafeArea stretches its edge.
+            let height = max(210, geometry.safeAreaInsets.top + 175)
+            let stops = (0...16).map { index -> Gradient.Stop in
+                let position = Double(index) / 16
+                let opacity = (1 + cos(.pi * position)) / 2
+                return .init(color: .white.opacity(opacity), location: CGFloat(position))
+            }
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                p.background.opacity(0.28)
+            }
+            .frame(height: height)
+            .mask(LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom))
+            .opacity(strength)
+        }.ignoresSafeArea(edges: .top).allowsHitTesting(false).accessibilityHidden(true)
     }
 }

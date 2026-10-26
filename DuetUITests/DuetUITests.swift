@@ -144,6 +144,34 @@ final class DuetUITests: XCTestCase {
         attach(app, "Native Photo Picker"); cancel.tap()
     }
 
+    func testSendingAnotherMessageDoesNotBecomeStop() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--uitest-replies", "--uitest-hold-replies"]
+        app.launch()
+        XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12)); app.buttons["thread.gpt"].tap()
+        let input = app.descendants(matching: .any)["message.input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 5)); input.tap(); app.typeText("one")
+        let send = app.buttons["message.send"]; send.tap()
+        XCTAssertTrue(app.staticTexts["one"].waitForExistence(timeout: 5))
+        XCTAssertEqual(send.label, "停止回复")
+        app.typeText("two")
+        XCTAssertEqual(send.label, "发送消息", "A draft must send instead of cancelling the active reply")
+        send.tap()
+        XCTAssertTrue(app.staticTexts["two"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["one"].exists)
+        XCTAssertFalse(app.staticTexts["已停止"].exists)
+    }
+
+    func testWallpaperContinuesBehindHeaderAndComposer() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--uitest-history", "--uitest-wallpaper"]
+        app.launch()
+        XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12)); app.buttons["thread.gpt"].tap()
+        XCTAssertTrue(app.buttons["chat.options"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        attach(app, "Continuous Wallpaper Header And Composer")
+    }
+
     func testFontImportPresentsNativeDocumentPicker() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitesting"]; app.launch()
         XCTAssertTrue(app.tabBars.buttons["想法"].waitForExistence(timeout: 12)); app.tabBars.buttons["想法"].tap()
