@@ -10,6 +10,20 @@ enum LayoutMetrics {
     static let sheet: CGFloat = 28
 }
 
+struct TypingIndicator: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let color: Color
+    var body: some View {
+        Group {
+            if reduceMotion { dots(phase: nil) }
+            else { PhaseAnimator([0, 1, 2]) { phase in dots(phase: phase) } animation: { _ in .easeInOut(duration: 0.4) } }
+        }.accessibilityElement(children: .ignore)
+    }
+    private func dots(phase: Int?) -> some View {
+        HStack(spacing: 5) { ForEach(0..<3) { index in Circle().fill(color).frame(width: 5, height: 5).opacity(phase == nil || phase == index ? 0.9 : 0.3).offset(y: phase == index ? -1 : 0) } }
+    }
+}
+
 struct Palette {
     let background: Color
     let foreground: Color

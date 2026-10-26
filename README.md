@@ -1,4 +1,4 @@
-# Duet 0.5 · Native iPhone app
+# Duet 0.5.1 · Native iPhone app
 
 SwiftUI / UIKit throughout, without a web view or bundled HTML/JS/CSS. GitHub macOS builds an unsigned arm64 IPA for self signing. iOS 17 minimum; Xcode 26 supplies native Liquid Glass on iOS 26, with system Material on older versions.
 
@@ -24,6 +24,8 @@ Ordinary GPT-6 text and phone delivery were verified on connector 0.2.8. The new
 
 ## Build and validation
 
-Push to main triggers **Build Native iPhone IPA**. Download **Duet-native-ipa**, extract `Duet-Native-unsigned.ipa`, then self sign. Bundle ID remains `app.duet.preview`, version 0.5.0. Update over the existing installation to preserve app data.
+Push to main triggers **Build Native iPhone IPA**. Download **Duet-native-ipa**, extract `Duet-Native-unsigned.ipa`, then self sign. Bundle ID remains `app.duet.preview`, version 0.5.1. Update over the existing installation to preserve app data.
 
 The workflow validates native-only sources/IPA, compiles on macOS, runs storage/font/photo unit tests and iPhone simulator UI tests, and exports screenshots and failure diagnostics. Simulator testing does not replace physical-phone checks for camera, notification delivery, signing or real image analysis. Font test fixtures are in the test target only and are not bundled in the app.
+
+0.5.1 removes the extra replying caption below bubbles and keeps an accessible typing indicator inside the empty reply bubble. The optional Duet connector 0.3.1 defaults to background tabs without browser focus; this has separate real-device verification.
