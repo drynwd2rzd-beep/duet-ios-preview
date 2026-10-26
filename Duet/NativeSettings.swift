@@ -192,27 +192,57 @@ struct NotificationSettings: View {
 }
 struct ModelSettings: View {
     @EnvironmentObject private var store: NativeStore
+    @Environment(\.colorScheme) private var scheme
     let provider: String
     var thread: String? = nil
     private var channel: String { thread ?? provider }
     private var selected: ModelSelection { store.selection(thread: channel, provider: provider) }
+    private var p: Palette { Palette(store.data.preferences, scheme) }
     var body: some View {
         Form {
-            Section(store.name(provider)) { LabeledContent("已选模型", value: store.relay.modelLabel(provider, thread: channel)) }
+            Section(store.name(provider)) {
+                LabeledContent("已选模型", value: store.relay.modelLabel(provider, thread: channel))
+                if provider == "gpt" { NavigationLink { EffortSettings(thread: channel, provider: provider) } label: { LabeledContent("思考强度", value: selected.effort.map { ModelChoice.effortName($0, source: selected.source) } ?? (selected.source == "chatgpt-web" ? "跟随官网" : "跟随模型默认")) }.accessibilityIdentifier("model.effort") }
+            }
             if provider == "gpt" {
                 ForEach(["chatgpt-web", "codex-chatgpt"], id: \.self) { source in
                     Section(source == "chatgpt-web" ? "ChatGPT 聊天模型" : "Codex 模型") {
-                        let choices = store.relay.modelChoices.filter { $0.source == source }
+                        let choices = ModelChoice.ordered(store.relay.modelChoices.filter { $0.source == source })
                         if choices.isEmpty { Text(source == "chatgpt-web" ? "请连接电脑上的网页连接器" : "连接电脑后读取 Codex 账号的可用模型").font(store.font(12)).foregroundStyle(.secondary) }
                         ForEach(choices) { choice in Button { store.select(choice, thread: channel, provider: provider) } label: {
-                            HStack { VStack(alignment: .leading, spacing: 5) { Text(choice.name); Text(source == "chatgpt-web" ? "思考强度 · 跟随官网" : "思考强度 · " + (choice.effort ?? "跟随模型默认")).font(store.font(11)).foregroundStyle(.secondary) }; Spacer(); if selected.source == choice.source && (selected.model == choice.model || selected.model == nil && choices.first?.id == choice.id) { Image(systemName: "checkmark") } }
-                        }.accessibilityIdentifier("model." + choice.id) }
+                            HStack { VStack(alignment: .leading, spacing: 5) { HStack(spacing: 7) { Text(choice.name); if choice.isDefault { Text("默认").font(store.font(10)).foregroundStyle(p.secondary) } }; Text(source == "chatgpt-web" ? "ChatGPT 聊天" : "默认强度 · " + choice.effortLabel).font(store.font(11)).foregroundStyle(p.secondary) }; Spacer(); if selected.source == choice.source && (selected.model == choice.model || selected.model == nil && (choice.isDefault || choices.first?.id == choice.id)) { Image(systemName: "checkmark").foregroundStyle(p.accent) } }.foregroundStyle(p.foreground)
+                        }.buttonStyle(.plain).accessibilityIdentifier("model." + choice.id) }
                     }
                 }
-                Section { Text("聊天模型使用 ChatGPT 聊天额度；Codex 模型使用 Work/Codex 额度。思考强度跟随所选模型；不会在失败时擅自换到另一种连接。").font(store.font(11)).foregroundStyle(.secondary); Button("刷新可用模型") { store.relay.refreshModels() } }
+                Section { Text("聊天模型使用 ChatGPT 聊天额度；Codex 模型使用 Work/Codex 额度。思考强度可单独选择，也可保留默认。").font(store.font(11)).foregroundStyle(p.secondary); Button("刷新可用模型") { store.relay.refreshModels() } }
             }
             else { Text("Claude 尚未接入，暂时无法选择模型。").font(store.font(11)).foregroundStyle(.secondary) }
-        }.sheetTitle("模型与思考强度").onAppear { store.relay.refreshStatus(); store.relay.refreshModels() }
+        }.scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("模型与思考强度").onAppear { store.relay.refreshStatus(); store.relay.refreshModels() }
+    }
+}
+
+struct EffortSettings: View {
+    @EnvironmentObject private var store: NativeStore
+    @Environment(\.colorScheme) private var scheme
+    let thread: String
+    let provider: String
+    private var p: Palette { Palette(store.data.preferences, scheme) }
+    private var selected: ModelSelection { store.selection(thread: thread, provider: provider) }
+    private var choice: ModelChoice? { ModelChoice.ordered(store.relay.modelChoices).first { $0.source == selected.source && (selected.model == nil || $0.model == selected.model) } }
+    var body: some View {
+        Form {
+            Section { LabeledContent("模型", value: choice?.name ?? store.relay.modelLabel(provider, thread: thread)) }
+            Section {
+                option(nil, title: selected.source == "chatgpt-web" ? "跟随官网" : "跟随模型默认")
+                ForEach(choice?.availableEfforts ?? [], id: \.self) { effort in option(effort, title: ModelChoice.effortName(effort, source: selected.source)) }
+            }
+            if choice?.availableEfforts.isEmpty != false { Section { Text("连接电脑并刷新模型后，会显示该模型实际提供的强度。").font(store.font(12)).foregroundStyle(p.secondary) } }
+        }.scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("思考强度")
+    }
+    private func option(_ effort: String?, title: String) -> some View {
+        Button { store.selectEffort(effort, thread: thread, provider: provider) } label: {
+            HStack { Text(title).font(store.font(15)).foregroundStyle(p.foreground); Spacer(); if selected.effort == effort { Image(systemName: "checkmark").foregroundStyle(p.accent) } }
+        }.buttonStyle(.plain).accessibilityIdentifier("effort." + (effort ?? "default"))
     }
 }
 struct HistorySettings: View {

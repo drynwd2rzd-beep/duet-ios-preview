@@ -202,8 +202,25 @@ final class DuetUITests: XCTestCase {
         let input = app.textFields["search.input"]
         XCTAssertTrue(input.waitForExistence(timeout: 6)); input.tap(); input.typeText("Earlier message 12")
         let result = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Earlier message 12")).firstMatch
-        XCTAssertTrue(result.waitForExistence(timeout: 6)); attach(app, "Native Conversation Search"); result.tap()
+        XCTAssertTrue(result.waitForExistence(timeout: 6))
+        let tutorial = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", "Continue", "继续")).firstMatch
+        if tutorial.exists { tutorial.tap() }
+        attach(app, "Native Conversation Search"); result.tap()
         let message = app.staticTexts["Earlier message 12"].firstMatch
         expectation(for: NSPredicate { _, _ in message.exists && message.isHittable }, evaluatedWith: nil); waitForExpectations(timeout: 8)
+    }
+    func testModelsAndEffortAreIndependentOrderedSelections() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitesting", "--uitest-models"]; app.launch()
+        XCTAssertTrue(app.buttons["thread.gpt"].waitForExistence(timeout: 12)); app.buttons["thread.gpt"].tap(); app.buttons["chat.options"].tap(); app.buttons["chat.model.gpt"].tap()
+        let codex = app.buttons["model.codex-chatgpt:gpt-6-sol"]
+        XCTAssertTrue(codex.waitForExistence(timeout: 6)); codex.tap(); attach(app, "Ordered Native Models")
+        app.buttons["model.effort"].tap()
+        let low = app.buttons["effort.low"], medium = app.buttons["effort.medium"], high = app.buttons["effort.high"]
+        XCTAssertTrue(low.waitForExistence(timeout: 5)); XCTAssertLessThan(low.frame.minY, medium.frame.minY); XCTAssertLessThan(medium.frame.minY, high.frame.minY)
+        high.tap(); attach(app, "Independent Codex Effort"); app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["model.effort"].label.contains("高"))
+        app.buttons["model.chatgpt-web:GPT-6"].tap(); app.buttons["model.effort"].tap()
+        XCTAssertTrue(app.buttons["effort.none"].waitForExistence(timeout: 5)); XCTAssertLessThan(app.buttons["effort.none"].frame.minY, app.buttons["effort.medium"].frame.minY)
+        app.buttons["effort.none"].tap(); attach(app, "Independent Chat Effort")
     }
 }

@@ -121,6 +121,12 @@ final class NativeRelay: ObservableObject {
     private func send(_ event: [String: Any]) { guard let raw = try? JSONSerialization.data(withJSONObject: event) else { return }; send(raw) }
     private func send(_ raw: Data) {
         guard connected, let task, let text = String(data: raw, encoding: .utf8) else { return }
+        if capabilities["reasoningEffort"] as? Bool != true,
+           let event = try? JSONSerialization.jsonObject(with: raw) as? [String: Any], event["type"] as? String == "message",
+           let context = event["context"] as? [String: Any], let route = context["route"] as? [String: Any], let effort = route["effort"] as? String, !effort.isEmpty,
+           let id = event["id"] as? String, let uuid = UUID(uuidString: id), let channel = event["channel"] as? String {
+            outbox.removeValue(forKey: id); try? saveOutbox(); failLocal(uuid, thread: channel, reason: "请更新电脑消息桥后使用独立思考强度"); return
+        }
         let ticket = generation
         Task { [weak self] in do { try await task.send(.string(text)) } catch { if self?.generation == ticket { self?.connectionLost(error) } } }
     }
@@ -171,7 +177,9 @@ final class NativeRelay: ObservableObject {
                     partners[id] = ["name": store.name(id), "callName": persona.userCallName ?? "", "groupCallName": persona.groupCallName ?? "", "role": [persona.identity, persona.values, persona.relationship, persona.voice].filter { !$0.isEmpty }.joined(separator: "\n"), "memories": persona.memories.map { ["text": $0.text, "group": $0.group] as [String: Any] }]
                 }
                 let selected = store.selection(thread: thread)
-                let payload: [String: Any] = ["type": "message", "id": key, "channel": thread, "text": message.text, "recipients": message.recipients, "context": ["viewerName": store.name("self"), "partners": partners, "autoDiscuss": store.data.preferences.autoDiscuss, "route": ["source": selected.source, "model": selected.model ?? ""]]]
+                var route = ["source": selected.source, "model": selected.model ?? ""]
+                if let effort = selected.effort { route["effort"] = effort }
+                let payload: [String: Any] = ["type": "message", "id": key, "channel": thread, "text": message.text, "recipients": message.recipients, "context": ["viewerName": store.name("self"), "partners": partners, "autoDiscuss": store.data.preferences.autoDiscuss, "route": route]]
                 let paths = message.attachments.map { (id: $0.id.uuidString.lowercased(), name: $0.name, url: store.url($0.path)) }
                 let raw = try await Task.detached(priority: .userInitiated) {
                     var encoded = payload
@@ -221,7 +229,7 @@ final class NativeRelay: ObservableObject {
             for job in event["jobs"] as? [[String: Any]] ?? [] { updateJob(job) }
             store?.data.messages[channel]?.sort { $0.date < $1.date }
         case "models":
-            modelChoices = (event["models"] as? [[String: Any]] ?? []).compactMap { item in guard let source = item["source"] as? String, ["chatgpt-web", "codex-chatgpt"].contains(source), let model = item["model"] as? String, let name = item["name"] as? String else { return nil }; return ModelChoice(source: source, model: model, name: name, effort: item["effort"] as? String, images: item["images"] as? Bool == true) }
+            modelChoices = ModelChoice.ordered((event["models"] as? [[String: Any]] ?? []).compactMap { item in guard let source = item["source"] as? String, ["chatgpt-web", "codex-chatgpt"].contains(source), let model = item["model"] as? String, let name = item["name"] as? String else { return nil }; return ModelChoice(source: source, model: model, name: name, effort: item["effort"] as? String, images: item["images"] as? Bool == true, isDefault: item["isDefault"] as? Bool == true, efforts: item["efforts"] as? [String] ?? []) })
             store?.objectWillChange.send()
         case "push.status": NativePush.shared.received(event)
         case "asset":

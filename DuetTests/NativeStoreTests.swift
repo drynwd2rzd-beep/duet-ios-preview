@@ -4,6 +4,24 @@ import SwiftUI
 @testable import Duet
 
 final class NativeStoreTests: XCTestCase {
+    func testModelsStayGroupedAndSortByNumericVersion() {
+        func choice(_ id: String, source: String = "codex-chatgpt", isDefault: Bool = false) -> ModelChoice { ModelChoice(source: source, model: id, name: id, effort: "medium", images: true, isDefault: isDefault) }
+        let models = [choice("gpt-5.6-luna"), choice("gpt-6-sol"), choice("gpt-10-sol"), choice("GPT-6", source: "chatgpt-web"), choice("gpt-6.1-sol", isDefault: true), choice("gpt-6-astra")]
+        XCTAssertEqual(ModelChoice.ordered(models).map(\.model), ["GPT-6", "gpt-6.1-sol", "gpt-10-sol", "gpt-6-astra", "gpt-6-sol", "gpt-5.6-luna"])
+        XCTAssertEqual(choice("test").effortLabel, "中")
+    }
+    @MainActor func testIndependentEffortPersistsAndDoesNotLeakToAnotherConversation() throws {
+        let store = try store()
+        let first = ModelChoice(source: "codex-chatgpt", model: "first", name: "First", effort: "medium", images: true, efforts: ["high", "low", "medium"])
+        let second = ModelChoice(source: "codex-chatgpt", model: "second", name: "Second", effort: "low", images: true, efforts: ["low"])
+        store.relay.modelChoices = [first, second]; store.select(first, thread: "gpt"); store.selectEffort("high", thread: "gpt")
+        XCTAssertEqual(store.selection(thread: "gpt").effort, "high"); XCTAssertNil(store.selection(thread: "group").effort)
+        XCTAssertEqual(first.availableEfforts, ["low", "medium", "high"])
+        let reopened = NativeStore(directory: store.directory, testMode: true)
+        XCTAssertEqual(reopened.selection(thread: "gpt").effort, "high")
+        store.select(second, thread: "gpt"); XCTAssertNil(store.selection(thread: "gpt").effort)
+        store.selectEffort("high", thread: "gpt"); XCTAssertNil(store.selection(thread: "gpt").effort)
+    }
     @MainActor func testChatPaletteAdaptsToWallpaperAndDimming() throws {
         let store = try store()
         XCTAssertEqual(store.chatColorScheme("gpt", fallback: .light), .light)

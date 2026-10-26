@@ -55,8 +55,47 @@ struct Persona: Codable {
     var userCallName: String? = nil
     var groupCallName: String? = nil
 }
-struct ModelSelection: Codable { var source = "chatgpt-web"; var model: String? = nil }
-struct ModelChoice: Identifiable { var id: String { source + ":" + model }; var source: String; var model: String; var name: String; var effort: String?; var images: Bool }
+struct ModelSelection: Codable { var source = "chatgpt-web"; var model: String? = nil; var effort: String? = nil }
+struct ModelChoice: Identifiable {
+    var id: String { source + ":" + model }
+    var source: String; var model: String; var name: String; var effort: String?; var images: Bool
+    var isDefault = false
+    var efforts: [String] = []
+    static let effortOrder = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+    var availableEfforts: [String] { Self.effortOrder.filter { efforts.contains($0) } }
+    var effortLabel: String { Self.effortName(effort, source: source) }
+    static func effortName(_ effort: String?, source: String) -> String {
+        switch effort?.lowercased() {
+        case "none": return source == "chatgpt-web" ? "即时" : "关闭"
+        case "minimal": return "极低"
+        case "low": return "低"
+        case "medium": return "中"
+        case "high": return "高"
+        case "xhigh": return "更高"
+        case "max": return "最高"
+        case "ultra": return "极致"
+        default: return effort ?? "跟随模型默认"
+        }
+    }
+    static func ordered(_ choices: [ModelChoice]) -> [ModelChoice] {
+        choices.sorted { a, b in
+            if a.source != b.source { return a.source == "chatgpt-web" }
+            if a.isDefault != b.isDefault { return a.isDefault }
+            let av = a.version, bv = b.version
+            for index in 0..<max(av.count, bv.count) {
+                let ai = index < av.count ? av[index] : 0, bi = index < bv.count ? bv[index] : 0
+                if ai != bi { return ai > bi }
+            }
+            if a.variant != b.variant { return a.variant < b.variant }
+            return a.model.localizedStandardCompare(b.model) == .orderedAscending
+        }
+    }
+    private var version: [Int] {
+        guard let range = model.range(of: #"\d+(?:\.\d+)*"#, options: .regularExpression) else { return [] }
+        return model[range].split(separator: ".").compactMap { Int($0) }
+    }
+    private var variant: Int { ["astra", "sol", "terra", "luna"].firstIndex(where: { model.lowercased().contains($0) }) ?? 99 }
+}
 struct BackdropOptions: Codable, Equatable {
     var zoom = 1.0
     var x = 0.0
@@ -136,6 +175,13 @@ final class NativeStore: ObservableObject {
         #if DEBUG
         if testMode && ProcessInfo.processInfo.arguments.contains("--uitest-history") {
             data.messages["gpt"] = (0..<65).map { ChatMessage(author: $0 % 2 == 0 ? "me" : "gpt", text: $0 == 64 ? "Latest test reply" : "Earlier message \($0)", status: "received") }
+        }
+        if testMode && ProcessInfo.processInfo.arguments.contains("--uitest-models") {
+            relay.connected = true
+            relay.modelChoices = ModelChoice.ordered([
+                ModelChoice(source: "chatgpt-web", model: "GPT-6", name: "GPT-6", effort: nil, images: true, efforts: ["high", "none", "medium"]),
+                ModelChoice(source: "codex-chatgpt", model: "gpt-6-sol", name: "GPT-6 Sol", effort: "medium", images: true, isDefault: true, efforts: ["high", "low", "medium"])
+            ])
         }
         if testMode && (ProcessInfo.processInfo.arguments.contains("--uitest-wallpaper") || ProcessInfo.processInfo.arguments.contains("--uitest-wallpaper-dark")) {
             let dark = ProcessInfo.processInfo.arguments.contains("--uitest-wallpaper-dark")
@@ -295,7 +341,18 @@ final class NativeStore: ObservableObject {
         relay.enqueue(message, thread: thread)
     }
     func selection(thread: String, provider: String = "gpt") -> ModelSelection { data.routes?[thread + ":" + provider] ?? ModelSelection() }
-    func select(_ choice: ModelChoice, thread: String, provider: String = "gpt") { if data.routes == nil { data.routes = [:] }; data.routes?[thread + ":" + provider] = ModelSelection(source: choice.source, model: choice.model); persist() }
+    func select(_ choice: ModelChoice, thread: String, provider: String = "gpt") {
+        let previous = selection(thread: thread, provider: provider)
+        let effort = previous.source == choice.source && previous.model == choice.model && choice.efforts.contains(previous.effort ?? "") ? previous.effort : nil
+        if data.routes == nil { data.routes = [:] }; data.routes?[thread + ":" + provider] = ModelSelection(source: choice.source, model: choice.model, effort: effort); persist()
+    }
+    func selectEffort(_ effort: String?, thread: String, provider: String = "gpt") {
+        var selected = selection(thread: thread, provider: provider)
+        let choice = ModelChoice.ordered(relay.modelChoices).first { $0.source == selected.source && (selected.model == nil || $0.model == selected.model) }
+        if let effort { guard choice?.availableEfforts.contains(effort) == true else { notice("这个模型未提供所选强度"); return }; if selected.model == nil { selected.model = choice?.model } }
+        selected.effort = effort
+        if data.routes == nil { data.routes = [:] }; data.routes?[thread + ":" + provider] = selected; persist()
+    }
     func reconcileReminders() { Task { await notifications.syncReminders(data.ideas) } }
     func toggleIdea(_ id: UUID) { if let i = data.ideas.firstIndex(where: { $0.id == id }) { data.ideas[i].task = true; data.ideas[i].done.toggle(); reconcileReminders(); UISelectionFeedbackGenerator().selectionChanged() } }
     func retry(_ thread: String, id: UUID) { guard let i = data.messages[thread]?.firstIndex(where: { $0.id == id }) else { return }; if let job = data.messages[thread]![i].bridgeJob { relay.retryJob(job) } else { data.messages[thread]![i].status = "sending"; data.messages[thread]![i].bridgeError = nil; relay.enqueue(data.messages[thread]![i], thread: thread) } }
