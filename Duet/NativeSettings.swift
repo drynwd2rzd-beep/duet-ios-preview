@@ -42,7 +42,7 @@ struct NativeSettings: View {
                     row(.automation, icon: "arrow.2.squarepath", title: "自动讨论", detail: store.data.preferences.autoDiscuss ? "开启" : "关闭", id: "settings.automation")
                 }
                 Section { row(.history, icon: "clock.arrow.circlepath", title: "聊天记录", id: "settings.history") }
-            }.scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground)
+            }.listSectionSpacing(18).contentMargins(.top, 12).scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground)
                 .navigationTitle("设置").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
                 .navigationDestination(for: SettingsRoute.self) { settingsDestination($0) }
@@ -83,7 +83,7 @@ struct AppearanceSettings: View {
                 Picker("页面背景", selection: $store.data.preferences.background) { Text("暖白").tag("porcelain"); Text("浅粉").tag("blush"); Text("奶杏").tag("cream"); Text("雾蓝").tag("mist") }
             }
             Section("文字大小") { HStack(spacing: 16) { Text("\(Int(store.data.preferences.textScale * 100))%").monospacedDigit().font(store.font(12)).foregroundStyle(p.secondary); Slider(value: $store.data.preferences.textScale, in: 0.9...1.3, step: 0.05) } }
-        }.font(store.font(15)).scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("外观与字体")
+        }.font(store.font(15)).listSectionSpacing(18).contentMargins(.top, 12).scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("外观与字体")
             .sheet(isPresented: $fontImporter) { NativeFontPicker { url in fontImporter = false; guard let url else { return }; do { try store.importFont(url) } catch { store.notice(error.localizedDescription) } }.ignoresSafeArea() }
     }
 }
@@ -111,7 +111,7 @@ struct ProfileEditor: View {
             VStack(alignment: .leading, spacing: 8) { Text("显示名称").font(store.font(11)).foregroundStyle(p.secondary); TextField("名字", text: $edited.name).font(store.font(16)).padding(14).background(p.surface, in: RoundedRectangle(cornerRadius: LayoutMetrics.field)).accessibilityIdentifier("profile.name") }.padding(.top, 8)
             PrimaryAction(title: "保存") { store.saveProfile(edited); dismiss() }.disabled(edited.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityIdentifier("profile.save")
             if id == "self" { Text("未设置单独称呼时，伙伴会使用这里的名字。").font(store.font(12)).foregroundStyle(p.secondary) }
-        }.padding(24) }.background(p.background).sheetTitle(id == "self" ? "我的资料" : "名字与头像").onAppear { edited = store.profile(id) }.onChange(of: selection) { _, item in Task { do { if let raw = try await item?.loadTransferable(type: Data.self) { edited.avatar = try store.savePhoto(raw).path } } catch { store.notice(error.localizedDescription) } } }
+        }.padding(LayoutMetrics.page) }.background(p.background).sheetTitle(id == "self" ? "我的资料" : "名字与头像").onAppear { edited = store.profile(id) }.onChange(of: selection) { _, item in Task { do { if let raw = try await item?.loadTransferable(type: Data.self) { edited.avatar = try store.savePhoto(raw).path } } catch { store.notice(error.localizedDescription) } } }
     }
 }
 
@@ -282,7 +282,7 @@ struct ConversationInfo: View {
                     Button { store.pin(thread) } label: { Label(store.data.pinned.contains(thread) ? "取消置顶" : "置顶会话", systemImage: store.data.pinned.contains(thread) ? "pin.slash" : "pin") }
                 }
                 Section { Button("清空聊天记录", role: .destructive) { clearPresented = true }.accessibilityIdentifier("chat.clear-history") }
-            }.scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("会话选项")
+            }.listSectionSpacing(18).contentMargins(.top, 12).scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("会话选项")
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("关闭会话选项") } }
                 .navigationDestination(for: SettingsRoute.self) { settingsDestination($0) }
         }.presentationDetents([.large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)

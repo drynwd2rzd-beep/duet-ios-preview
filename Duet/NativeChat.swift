@@ -36,7 +36,6 @@ struct NativeChat: View {
     @State private var nearBottom = true
     @State private var followingLatest = true
     @State private var userScrolling = false
-    @State private var initiallyPositioned = false
     @State private var importingPhotos = false
     @State private var photoImportTask: Task<Void, Never>? = nil
     @FocusState private var inputFocused: Bool
@@ -119,7 +118,7 @@ struct NativeChat: View {
             .onChange(of: inputFocused) { _, _ in scrollLatest(proxy) }
             .onChange(of: searchIndex) { _, value in if !visibleMessages.isEmpty { proxy.scrollTo(visibleMessages[min(value, visibleMessages.count - 1)].id, anchor: .center) } }
             .onChange(of: store.requestedMessage) { _, id in if let id, messages.contains(where: { $0.id == id }) { followingLatest = false; proxy.scrollTo(id, anchor: .center); store.requestedMessage = nil } }
-            .task(id: thread) { await Task.yield(); if let id = store.requestedMessage, messages.contains(where: { $0.id == id }) { followingLatest = false; proxy.scrollTo(id, anchor: .center); store.requestedMessage = nil } else { followingLatest = true; proxy.scrollTo("chat.bottom", anchor: .bottom) }; initiallyPositioned = true }
+            .task(id: thread) { await Task.yield(); if let id = store.requestedMessage, messages.contains(where: { $0.id == id }) { followingLatest = false; proxy.scrollTo(id, anchor: .center); store.requestedMessage = nil } else { followingLatest = true; proxy.scrollTo("chat.bottom", anchor: .bottom) } }
         }
     }
     private func scrollLatest(_ proxy: ScrollViewProxy) {
@@ -138,14 +137,14 @@ struct NativeChat: View {
                 Button { searchIndex = max(0, searchIndex - 1) } label: { Image(systemName: "chevron.up") }.disabled(visibleMessages.isEmpty).accessibilityLabel("上一个结果")
                 Button { searchIndex = min(max(0, visibleMessages.count - 1), searchIndex + 1) } label: { Image(systemName: "chevron.down") }.disabled(visibleMessages.isEmpty).accessibilityLabel("下一个结果")
             }.font(.system(size: 12))
-        }.padding(.horizontal, 18).padding(.vertical, 10).background(p.background)
+        }.padding(.horizontal, LayoutMetrics.page).padding(.vertical, 10).background(p.background)
     }
     private var composer: some View {
         VStack(spacing: 9) {
             if importingPhotos { ProgressView("正在处理照片").font(store.font(12)).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, LayoutMetrics.page) }
             if !mentionChoices.isEmpty { HStack(spacing: 8) { ForEach(mentionChoices, id: \.self) { id in Button { chooseMention(id) } label: { HStack(spacing: 6) { if id != "all" { Avatar(id: id, size: 22) }; Text(id == "all" ? "所有人" : store.name(id)).font(store.font(12)) }.padding(.horizontal, 10).padding(.vertical, 8).background(p.surface, in: Capsule()) }.buttonStyle(.plain) }; Spacer(minLength: 0) }.padding(.horizontal, 14) }
             if !attachments.isEmpty { ScrollView(.horizontal) { HStack(spacing: 10) { ForEach(attachments) { item in ZStack(alignment: .topTrailing) { if item.photo, let image = store.image(item.path) { Image(uiImage: image).resizable().scaledToFill().frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: LayoutMetrics.field)) } else { Label(item.name, systemImage: "doc").font(store.font(11)).lineLimit(2).frame(width: 120, height: 58).padding(7).background(p.surface, in: RoundedRectangle(cornerRadius: LayoutMetrics.field)) }; Button { attachments.removeAll { $0.id == item.id } } label: { Image(systemName: "xmark.circle.fill").symbolRenderingMode(.palette).foregroundStyle(.white, .black.opacity(0.55)).font(.system(size: 20)) }.accessibilityLabel("移除附件") } } }.padding(.horizontal, 14) }.scrollIndicators(.hidden) }
-            if editing != nil { HStack { Text("编辑消息").font(store.font(11)); Spacer(); Button { editing = nil; text = "" } label: { Image(systemName: "xmark") }.accessibilityLabel("取消编辑") }.foregroundStyle(p.secondary).padding(.horizontal, 18) }
+            if editing != nil { HStack { Text("编辑消息").font(store.font(11)); Spacer(); Button { editing = nil; text = "" } label: { Image(systemName: "xmark") }.accessibilityLabel("取消编辑") }.foregroundStyle(p.secondary).padding(.horizontal, LayoutMetrics.page) }
             HStack(alignment: .bottom, spacing: 8) {
                 Menu {
                     Button("相机", systemImage: "camera") { openCamera() }
@@ -162,7 +161,7 @@ struct NativeChat: View {
         }.padding(.top, 10).padding(.bottom, 9).background { LinearGradient(colors: [p.background.opacity(0), p.background.opacity(0.82)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false) }
     }
     private var canSend: Bool { !store.relay.isClearing(thread) && (store.isReplying(thread) || !importingPhotos && (!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty)) }
-    private func send() { followingLatest = true; store.send(thread: thread, text: text, attachments: attachments, editing: editing); text = ""; attachments = []; editing = nil }
+    private func send() { userScrolling = false; followingLatest = true; store.send(thread: thread, text: text, attachments: attachments, editing: editing); text = ""; attachments = []; editing = nil }
     private func chooseMention(_ id: String) { if let range = text.range(of: "@", options: .backwards) { text.replaceSubrange(range.lowerBound..., with: "@" + (id == "all" ? "所有人" : store.name(id)) + " ") }; inputFocused = true }
     private func saveMemory(_ message: ChatMessage, provider: String) { memory = MemoryRequest(provider: provider, memory: Memory(text: String(message.text.prefix(160)), thread: thread, message: message.id, date: message.date)) }
     private func openCamera() { inputFocused = false; Task { let available = UIImagePickerController.isSourceTypeAvailable(.camera); let granted = available ? await AVCaptureDevice.requestAccess(for: .video) : false; if granted { cameraPresented = true } else { cameraUnavailable = true } } }
