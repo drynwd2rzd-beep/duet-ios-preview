@@ -283,7 +283,7 @@ struct ConversationInfo: View {
             }.scrollContentBackground(.hidden).background(p.background).foregroundStyle(p.foreground).sheetTitle("会话选项")
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("关闭会话选项") } }
                 .navigationDestination(for: SettingsRoute.self) { settingsDestination($0) }
-        }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)
+        }.presentationDetents([.large]).presentationDragIndicator(.visible).presentationCornerRadius(LayoutMetrics.sheet)
             .sheet(item: $idea) { IdeaEditor(idea: $0).environmentObject(store) }
             .onAppear { store.relay.refreshStatus(); store.relay.refreshModels() }
             .confirmationDialog("清空这个聊天的全部消息？", isPresented: $clearPresented, titleVisibility: .visible) { Button("清空记录", role: .destructive) { store.relay.clearHistory([thread]); dismiss() }; Button("取消", role: .cancel) { } } message: { Text("会同步清空电脑上的会话记录，并停止当前回复。独立保存的记忆保留。") }

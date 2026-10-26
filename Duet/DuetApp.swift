@@ -23,11 +23,11 @@ struct NativeRoot: View {
                 ChatsHome()
                 .navigationDestination(for: String.self) { id in NativeChat(thread: id) }
                 .toolbar(.hidden, for: .navigationBar)
-                .toolbar(.visible, for: .tabBar)
             }.tabItem { Label("聊天", systemImage: "bubble.left").labelStyle(.iconOnly) }.tag("chats").accessibilityIdentifier("tab.chats")
-            NavigationStack { IdeasHome().toolbar(.hidden, for: .navigationBar).toolbar(.visible, for: .tabBar) }
+            NavigationStack { IdeasHome().toolbar(.hidden, for: .navigationBar) }
                 .tabItem { Label("想法", systemImage: "lightbulb").labelStyle(.iconOnly) }.tag("ideas").accessibilityIdentifier("tab.ideas")
         }
+        .toolbar(tab == "chats" && !chatPath.isEmpty ? .hidden : .visible, for: .tabBar)
         .background(p.background)
         .tint(p.accent)
         .environment(\.font, store.font(14))

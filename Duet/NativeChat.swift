@@ -92,14 +92,15 @@ struct NativeChat: View {
     }
 
     private var chatScroll: some View {
-        ScrollViewReader { proxy in
+        let snapshot = visibleMessages
+        return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    if visibleMessages.isEmpty { QuietEmpty(icon: filtering ? "magnifyingglass" : "bubble.left", title: filtering ? "没有找到相关消息" : "从一句话开始", detail: filtering ? "换个关键词，或清除筛选。" : "和伙伴聊聊此刻的想法。") }
+                    if snapshot.isEmpty { QuietEmpty(icon: filtering ? "magnifyingglass" : "bubble.left", title: filtering ? "没有找到相关消息" : "从一句话开始", detail: filtering ? "换个关键词，或清除筛选。" : "和伙伴聊聊此刻的想法。") }
                     else {
-                        ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
-                            if index == 0 || !Calendar.current.isDate(message.date, inSameDayAs: visibleMessages[index - 1].date) { Text(message.date.formatted(.dateTime.month().day())).font(store.font(11)).foregroundStyle(p.secondary).padding(.vertical, 8) }
-                            MessageCell(message: message, showAuthor: index == 0 || visibleMessages[index - 1].author != message.author, thread: thread, onPhoto: { photos, index in inputFocused = false; gallery = GalleryRequest(photos: photos, index: index) }, onFile: { document = DocumentRequest(url: store.url($0.path)) }, onIdea: { idea = Idea(text: message.text) }, onMemory: { if message.author != "me" { saveMemory(message, provider: message.author) } else if thread != "group" { saveMemory(message, provider: thread) } else { memoryMessage = message } }, onEdit: { editing = message.id; text = message.text; inputFocused = true }, onModel: { inputFocused = false; infoPresented = true }).padding(.top, index > 0 && visibleMessages[index - 1].author != message.author ? 12 : 0).id(message.id)
+                        ForEach(Array(snapshot.enumerated()), id: \.element.id) { index, message in
+                            if index == 0 || !Calendar.current.isDate(message.date, inSameDayAs: snapshot[index - 1].date) { Text(message.date.formatted(.dateTime.month().day())).font(store.font(11)).foregroundStyle(p.secondary).padding(.vertical, 8) }
+                            MessageCell(message: message, showAuthor: index == 0 || snapshot[index - 1].author != message.author, thread: thread, onPhoto: { photos, index in inputFocused = false; gallery = GalleryRequest(photos: photos, index: index) }, onFile: { document = DocumentRequest(url: store.url($0.path)) }, onIdea: { idea = Idea(text: message.text) }, onMemory: { if message.author != "me" { saveMemory(message, provider: message.author) } else if thread != "group" { saveMemory(message, provider: thread) } else { memoryMessage = message } }, onEdit: { editing = message.id; text = message.text; inputFocused = true }, onModel: { inputFocused = false; infoPresented = true }).padding(.top, index > 0 && snapshot[index - 1].author != message.author ? 12 : 0).id(message.id)
                         }
                     }
                     Color.clear.frame(height: 1).id("chat.bottom")

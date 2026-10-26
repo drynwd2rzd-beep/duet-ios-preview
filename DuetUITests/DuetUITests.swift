@@ -20,6 +20,7 @@ final class DuetUITests: XCTestCase {
         group.tap()
         let field = app.descendants(matching: .any)["message.input"].firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "The home tab bar must be hidden in a conversation")
         XCTAssertEqual(app.webViews.count, 0)
         field.tap()
         app.typeText("Native hello")
@@ -100,6 +101,7 @@ final class DuetUITests: XCTestCase {
         let latest = app.staticTexts["Latest test reply"]
         XCTAssertTrue(latest.waitForExistence(timeout: 6))
         XCTAssertTrue(latest.isHittable, "Opening a long conversation must start at the newest message")
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "The chat must not keep the home tab bar below its composer")
         attach(app, "Latest Native Conversation")
         app.buttons["chat.options"].tap()
         XCTAssertTrue(app.buttons["chat.model.gpt"].waitForExistence(timeout: 5))
