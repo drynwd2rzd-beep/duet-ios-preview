@@ -210,7 +210,7 @@ struct ModelSettings: View {
                         let choices = ModelChoice.ordered(store.relay.modelChoices.filter { $0.source == source })
                         if choices.isEmpty { Text(source == "chatgpt-web" ? "请连接电脑上的网页连接器" : "连接电脑后读取 Codex 账号的可用模型").font(store.font(12)).foregroundStyle(.secondary) }
                         ForEach(choices) { choice in Button { store.select(choice, thread: channel, provider: provider) } label: {
-                            HStack { VStack(alignment: .leading, spacing: 5) { HStack(spacing: 7) { Text(choice.name); if choice.isDefault { Text("默认").font(store.font(10)).foregroundStyle(p.secondary) } }; Text(source == "chatgpt-web" ? "ChatGPT 聊天" : "默认强度 · " + choice.effortLabel).font(store.font(11)).foregroundStyle(p.secondary) }; Spacer(); if selected.source == choice.source && (selected.model == choice.model || selected.model == nil && (choice.isDefault || choices.first?.id == choice.id)) { Image(systemName: "checkmark").foregroundStyle(p.accent) } }.foregroundStyle(p.foreground)
+                            HStack { VStack(alignment: .leading, spacing: 5) { HStack(spacing: 7) { Text(choice.name); if choice.isDefault { Text("默认").font(store.font(10)).foregroundStyle(p.secondary) } }; Text(source == "chatgpt-web" ? "ChatGPT 聊天" : "默认强度 · " + choice.effortLabel).font(store.font(11)).foregroundStyle(p.secondary) }; Spacer(); if selected.source == choice.source && (selected.model == choice.model || selected.model == nil && (choice.isDefault || choices.first?.id == choice.id)) { Image(systemName: "checkmark").foregroundStyle(p.accent) } }.foregroundStyle(p.foreground).contentShape(Rectangle())
                         }.buttonStyle(.plain).accessibilityIdentifier("model." + choice.id) }
                     }
                 }
@@ -241,7 +241,7 @@ struct EffortSettings: View {
     }
     private func option(_ effort: String?, title: String) -> some View {
         Button { store.selectEffort(effort, thread: thread, provider: provider) } label: {
-            HStack { Text(title).font(store.font(15)).foregroundStyle(p.foreground); Spacer(); if selected.effort == effort { Image(systemName: "checkmark").foregroundStyle(p.accent) } }
+            HStack { Text(title).font(store.font(15)).foregroundStyle(p.foreground); Spacer(); if selected.effort == effort { Image(systemName: "checkmark").foregroundStyle(p.accent) } }.contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityIdentifier("effort." + (effort ?? "default"))
     }
 }
